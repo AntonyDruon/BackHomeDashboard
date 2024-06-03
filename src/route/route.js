@@ -11,6 +11,10 @@ import {
   insertDataHueLights,
   getAllLights,
   modifyStatusHueLights,
+  insertTokenNanoleaf,
+  getNanoleafToken,
+  insertDataNanoleafLights,
+  getDataNanoleafBDD,
 } from "../controller/lightController.js";
 import { createRoom } from "../controller/roomController.js";
 import { getAllRooms } from "../controller/roomController.js";
@@ -37,6 +41,20 @@ router.post(
   authMiddleware,
   modifyStatusHueLights
 );
+router.post("/lights/insertNanoleafToken", authMiddleware, insertTokenNanoleaf);
+router.get("/lights/getNanoleafToken", authMiddleware, getNanoleafToken);
+router.post(
+  "/lights/insertDataNanoleaf",
+  authMiddleware,
+  insertDataNanoleafLights
+);
+router.get("/lights/getDataNanoleafBDD", authMiddleware, getDataNanoleafBDD);
+router.put(
+  "/lights/modifyStatusNanoleaf",
+  authMiddleware,
+  modifyStatusHueLights
+);
+
 // room routes
 router.get("/rooms", authMiddleware, getAllRooms);
 router.post("/rooms/new", authMiddleware, createRoom);
