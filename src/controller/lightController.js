@@ -1,5 +1,9 @@
 import { response } from "express";
 import db from "../../db.js";
+import axios from "axios";
+
+const openRgbAddress = "127.0.0.1"; // Adresse du serveur OpenRGB
+const openRgbPort = 6742; // Port du serveur OpenRGB
 
 export const insertHueBridgeToken = async (req, res) => {
   try {
@@ -352,5 +356,32 @@ export const modifyStatusNanoleafLights = async (req, res) => {
     return res
       .status(500)
       .json({ message: "An error occurred while updating lights" });
+  }
+};
+
+export const changeOpenRgbColor = async (req, res) => {
+  try {
+    const { color } = req.body;
+    const [red, green, blue] = color.match(/\w\w/g).map((c) => parseInt(c, 16));
+
+    const data = {
+      id: 0, // Change according to your device id
+      colors: [
+        {
+          red: red,
+          green: green,
+          blue: blue,
+        },
+      ],
+    };
+
+    await axios.post(
+      `http://${openRgbAddress}:${openRgbPort}/device/color`,
+      data
+    );
+    res.status(200).send("Commande envoyée à OpenRGB");
+  } catch (error) {
+    console.error(error);
+    res.status(500).send("Erreur lors de l'envoi de la commande à OpenRGB");
   }
 };

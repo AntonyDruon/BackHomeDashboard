@@ -18,6 +18,19 @@ import {
 } from "../controller/lightController.js";
 import { createRoom } from "../controller/roomController.js";
 import { getAllRooms } from "../controller/roomController.js";
+import {
+  createNote,
+  getNotes,
+  getNoteById,
+  createFieldNote,
+  getNotesField,
+} from "../controller/noteController.js";
+import {
+  createTodo,
+  getTodos,
+  updateTodo,
+  deleteTodo,
+} from "../controller/todoController.js"; // Import des contrôleurs de la Todolist
 
 // Define routes
 
@@ -58,5 +71,19 @@ router.put(
 // room routes
 router.get("/rooms", authMiddleware, getAllRooms);
 router.post("/rooms/new", authMiddleware, createRoom);
+
+// note routes
+router.get("/notes/getNotes", authMiddleware, getNotes);
+router.post("/notes/new", authMiddleware, createNote);
+router.get("/notes/:id", authMiddleware, getNoteById);
+router.post("/notes/new/field", authMiddleware, createFieldNote);
+router.get("/notes/field/:id", authMiddleware, getNotesField);
+
+// todo routes
+router.get("/todos", authMiddleware, getTodos); // Récupérer toutes les tâches d'un utilisateur
+// todo routes
+router.post("/todos/new", authMiddleware, createTodo); // Assure-toi que cette ligne est correcte
+router.put("/todos/update/:id", authMiddleware, updateTodo); // Mettre à jour une tâche
+router.delete("/todos/delete/:id", authMiddleware, deleteTodo); // Supprimer une tâche
 
 export default router;
