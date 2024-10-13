@@ -59,10 +59,62 @@ export const updateTodo = (req, res) => {
     const { title, date, status, priorite, updated_at } = req.body;
     const todoId = req.params.id;
     const userId = req.userId;
+    const updatedAt = new Date().toISOString().slice(0, 19).replace("T", " "); // Format to 'YYYY-MM-DD HH:MM:SS'
 
     const query =
       "UPDATE todolist SET titre = ?, date = ?, status = ?, priorite = ?, updated_at = ? WHERE id_todo = ? AND id_user = ?";
-    const values = [title, date, status, priorite, updated_at, todoId, userId];
+    const values = [title, date, status, priorite, updatedAt, todoId, userId];
+
+    db.query(query, values, (error, results) => {
+      if (error) {
+        console.error("Error executing query:", error);
+        return res.status(500).json({ message: "Failed to update todo" });
+      }
+      res.status(200).json({ message: "Todo updated successfully" });
+    });
+  } catch (error) {
+    console.error("Error:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+export const updateTitleTodo = (req, res) => {
+  try {
+    const { titre, updated_at } = req.body;
+    console.log(
+      "req.bodyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy",
+      req.body
+    );
+    const todoId = req.params.id;
+    const userId = req.userId;
+    const updatedAt = new Date().toISOString().slice(0, 19).replace("T", " "); // Format to 'YYYY-MM-DD HH:MM:SS'
+
+    const query =
+      "UPDATE todolist SET titre = ?, updated_at = ? WHERE id_todo = ? AND id_user = ?";
+    const values = [titre, updatedAt, todoId, userId];
+
+    db.query(query, values, (error, results) => {
+      if (error) {
+        console.error("Error executing query:", error);
+        return res.status(500).json({ message: "Failed to update todo" });
+      }
+      res.status(200).json({ message: "TodoTitle updated successfully" });
+    });
+  } catch (error) {
+    console.error("Error:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+export const updateDateTodo = (req, res) => {
+  try {
+    const { date, updated_at } = req.body;
+    const todoId = req.params.id;
+    const userId = req.userId;
+    const updatedAt = new Date().toISOString().slice(0, 19).replace("T", " "); // Format to 'YYYY-MM-DD HH:MM:SS'
+
+    const query =
+      "UPDATE todolist SET date = ?, updated_at = ? WHERE id_todo = ? AND id_user = ?";
+    const values = [date, updatedAt, todoId, userId];
 
     db.query(query, values, (error, results) => {
       if (error) {
