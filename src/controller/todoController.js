@@ -9,21 +9,20 @@ export const getTodos = (req, res) => {
       [userId],
       (error, results) => {
         if (error) {
-          console.error("Error executing query:", error);
+          console.error("Error executing query:", error.code || error.message);
           return res.status(500).json({ message: "Failed to execute query" });
         }
         res.status(200).json(results); // Renvoie toutes les tâches
       }
     );
   } catch (error) {
-    console.error("Error:", error);
+    console.error("Error:", error.code || error.message);
     res.status(500).json({ message: "Internal server error" });
   }
 };
 
 // Créer une nouvelle tâche
 export const createTodo = (req, res) => {
-  console.log("req.body", req.body);
   try {
     const { title, date, status, priorite } = req.body;
     const userId = req.userId; // ID de l'utilisateur depuis le token
@@ -38,7 +37,7 @@ export const createTodo = (req, res) => {
 
     db.query(query, values, (error, results) => {
       if (error) {
-        console.error("Error executing query:", error);
+        console.error("Error executing query:", error.code || error.message);
         return res.status(500).json({ message: "Failed to create todo" });
       }
 
@@ -48,7 +47,7 @@ export const createTodo = (req, res) => {
       });
     });
   } catch (error) {
-    console.error("Error:", error);
+    console.error("Error:", error.code || error.message);
     res.status(500).json({ message: "Internal server error" });
   }
 };
@@ -67,13 +66,13 @@ export const updateTodo = (req, res) => {
 
     db.query(query, values, (error, results) => {
       if (error) {
-        console.error("Error executing query:", error);
+        console.error("Error executing query:", error.code || error.message);
         return res.status(500).json({ message: "Failed to update todo" });
       }
       res.status(200).json({ message: "Todo updated successfully" });
     });
   } catch (error) {
-    console.error("Error:", error);
+    console.error("Error:", error.code || error.message);
     res.status(500).json({ message: "Internal server error" });
   }
 };
@@ -81,10 +80,6 @@ export const updateTodo = (req, res) => {
 export const updateTitleTodo = (req, res) => {
   try {
     const { titre, updated_at } = req.body;
-    console.log(
-      "req.bodyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy",
-      req.body
-    );
     const todoId = req.params.id;
     const userId = req.userId;
     const updatedAt = new Date().toISOString().slice(0, 19).replace("T", " "); // Format to 'YYYY-MM-DD HH:MM:SS'
@@ -95,13 +90,13 @@ export const updateTitleTodo = (req, res) => {
 
     db.query(query, values, (error, results) => {
       if (error) {
-        console.error("Error executing query:", error);
+        console.error("Error executing query:", error.code || error.message);
         return res.status(500).json({ message: "Failed to update todo" });
       }
       res.status(200).json({ message: "TodoTitle updated successfully" });
     });
   } catch (error) {
-    console.error("Error:", error);
+    console.error("Error:", error.code || error.message);
     res.status(500).json({ message: "Internal server error" });
   }
 };
@@ -118,13 +113,13 @@ export const updateDateTodo = (req, res) => {
 
     db.query(query, values, (error, results) => {
       if (error) {
-        console.error("Error executing query:", error);
+        console.error("Error executing query:", error.code || error.message);
         return res.status(500).json({ message: "Failed to update todo" });
       }
       res.status(200).json({ message: "Todo updated successfully" });
     });
   } catch (error) {
-    console.error("Error:", error);
+    console.error("Error:", error.code || error.message);
     res.status(500).json({ message: "Internal server error" });
   }
 };
@@ -138,13 +133,13 @@ export const deleteTodo = (req, res) => {
     const query = "DELETE FROM todolist WHERE id_todo = ? AND id_user = ?";
     db.query(query, [todoId, userId], (error, results) => {
       if (error) {
-        console.error("Error executing query:", error);
+        console.error("Error executing query:", error.code || error.message);
         return res.status(500).json({ message: "Failed to delete todo" });
       }
       res.status(200).json({ message: "Todo deleted successfully" });
     });
   } catch (error) {
-    console.error("Error:", error);
+    console.error("Error:", error.code || error.message);
     res.status(500).json({ message: "Internal server error" });
   }
 };

@@ -17,7 +17,6 @@ export const insertHueBridgeToken = async (req, res) => {
     );
 
     if (existingToken.length > 0) {
-      console.log("existingToken", existingToken);
       // Si un token existe déjà, mettez à jour le token existant
       await db.query(
         "UPDATE huebridgetokens SET username = ? WHERE user_id = ?",
@@ -33,7 +32,7 @@ export const insertHueBridgeToken = async (req, res) => {
       res.status(200).json({ message: "Token inserted successfully" });
     }
   } catch (error) {
-    console.error("Error inserting/updating token:", error);
+    console.error("Error inserting/updating token:", error.code || error.message);
     res.status(500).json({ error: "Failed to insert/update token" });
   }
 };
@@ -41,22 +40,20 @@ export const insertHueBridgeToken = async (req, res) => {
 export const getHueBridgeToken = async (req, res) => {
   try {
     const userId = req.userId;
-    console.log("userId", userId);
     db.query(
       "SELECT username FROM huebridgetokens WHERE user_id = ?",
       [userId],
       (error, results) => {
         if (error) {
-          console.error("Error executing query:", error);
+          console.error("Error executing query:", error.code || error.message);
           res.status(500).json({ message: "Failed to execute query" });
         } else {
-          console.log("Results:", results);
           res.status(200).json(results);
         }
       }
     );
   } catch (error) {
-    console.error("Error:", error);
+    console.error("Error:", error.code || error.message);
     res.status(500).json({ message: "Internal server error" });
   }
 };
@@ -65,8 +62,6 @@ export const insertDataHueLights = async (req, res) => {
   const userId = req.userId;
   const { data } = req.body;
 
-  console.log("userId", userId);
-  console.log("req.body", data);
 
   try {
     for (let key in data) {
@@ -90,10 +85,9 @@ export const insertDataHueLights = async (req, res) => {
             [type, name, state, unique_id, id_room, userId],
             (error, results) => {
               if (error) {
-                console.error("Error inserting light into database:", error);
+                console.error("Error inserting light into database:", error.code || error.message);
                 return reject(error);
               } else {
-                console.log(`Inserted light ${name} into database`);
                 resolve(results);
               }
             }
@@ -104,7 +98,7 @@ export const insertDataHueLights = async (req, res) => {
 
     return res.status(200).json({ message: "Data inserted successfully" });
   } catch (error) {
-    console.error("Error inserting lights into database:", error);
+    console.error("Error inserting lights into database:", error.code || error.message);
     return res
       .status(500)
       .json({ message: "Error inserting lights into database" });
@@ -121,16 +115,15 @@ export const getAllLights = async (req, res) => {
       [userId, lightType],
       (error, results) => {
         if (error) {
-          console.error("Error executing query:", error);
+          console.error("Error executing query:", error.code || error.message);
           res.status(500).json({ message: "Failed to execute query" });
         } else {
-          console.log("Results:", results);
           res.status(200).json(results);
         }
       }
     );
   } catch (error) {
-    console.error("Error:", error);
+    console.error("Error:", error.code || error.message);
     res.status(500).json({ message: "Internal server error" });
   }
 };
@@ -138,7 +131,6 @@ export const modifyStatusHueLights = async (req, res) => {
   try {
     const userId = req.userId;
     const { data } = req.body;
-    console.log("data", data);
 
     // Assurez-vous que vous avez une connexion à votre base de données et un moyen d'exécuter des requêtes SQL
     // Ici, je suppose que vous avez déjà une connexion établie à votre base de données et que vous utilisez une bibliothèque comme mysql ou pg pour exécuter des requêtes
@@ -160,10 +152,9 @@ export const modifyStatusHueLights = async (req, res) => {
         await new Promise((resolve, reject) => {
           db.query(updateQuery, [state, id_light, userId], (error, results) => {
             if (error) {
-              console.error("Error updating light:", error);
+              console.error("Error updating light:", error.code || error.message);
               return reject(error);
             } else {
-              console.log(`Updated light ${id_light}`);
               resolve(results);
             }
           });
@@ -173,7 +164,7 @@ export const modifyStatusHueLights = async (req, res) => {
 
     return res.status(200).json({ message: "Lights updated successfully" });
   } catch (error) {
-    console.error("Error updating lights:", error);
+    console.error("Error updating lights:", error.code || error.message);
     return res
       .status(500)
       .json({ message: "An error occurred while updating lights" });
@@ -183,8 +174,6 @@ export const insertTokenNanoleaf = async (req, res) => {
   try {
     const { token } = req.body;
     const userId = req.userId;
-    console.log("userId", userId);
-    console.log("req.body", token);
     // Vérifier si l'username est déjà lié à l'utilisateur dans la base de données
     const existingToken = await db.query(
       "SELECT * FROM nanoleaftoken WHERE user_id = ?",
@@ -192,7 +181,6 @@ export const insertTokenNanoleaf = async (req, res) => {
     );
 
     if (existingToken.length > 0) {
-      console.log("existingToken", existingToken);
       // Si un token existe déjà, mettez à jour le token existant
       await db.query("UPDATE nanoleaftoken SET token = ? WHERE user_id = ?", [
         token,
@@ -208,29 +196,27 @@ export const insertTokenNanoleaf = async (req, res) => {
       res.status(200).json({ message: "Token inserted successfully" });
     }
   } catch (error) {
-    console.error("Error inserting/updating token:", error);
+    console.error("Error inserting/updating token:", error.code || error.message);
     res.status(500).json({ error: "Failed to insert/update token" });
   }
 };
 export const getNanoleafToken = async (req, res) => {
   try {
     const userId = req.userId;
-    console.log("userId", userId);
     db.query(
       "SELECT token FROM nanoleaftoken WHERE user_id = ?",
       [userId],
       (error, results) => {
         if (error) {
-          console.error("Error executing query:", error);
+          console.error("Error executing query:", error.code || error.message);
           res.status(500).json({ message: "Failed to execute query" });
         } else {
-          console.log("Results:", results);
           res.status(200).json(results);
         }
       }
     );
   } catch (error) {
-    console.error("Error:", error);
+    console.error("Error:", error.code || error.message);
     res.status(500).json({ message: "Internal server error" });
   }
 };
@@ -273,10 +259,9 @@ export const insertDataNanoleafLights = async (req, res) => {
         [type, name, state, unique_id, id_room, userId],
         (error, results) => {
           if (error) {
-            console.error("Error inserting light into database:", error);
+            console.error("Error inserting light into database:", error.code || error.message);
             return reject(error);
           } else {
-            console.log(`Inserted light ${name} into database`);
             resolve(results);
           }
         }
@@ -285,7 +270,7 @@ export const insertDataNanoleafLights = async (req, res) => {
 
     return res.status(200).json({ message: "Data inserted successfully" });
   } catch (error) {
-    console.error("Error inserting lights into database:", error);
+    console.error("Error inserting lights into database:", error.code || error.message);
     return res
       .status(500)
       .json({ message: "Error inserting lights into database" });
@@ -300,16 +285,15 @@ export const getDataNanoleafBDD = async (req, res) => {
       [userId, lightType],
       (error, results) => {
         if (error) {
-          console.error("Error executing query:", error);
+          console.error("Error executing query:", error.code || error.message);
           res.status(500).json({ message: "Failed to execute query" });
         } else {
-          console.log("Results:", results);
           res.status(200).json(results);
         }
       }
     );
   } catch (error) {
-    console.error("Error:", error);
+    console.error("Error:", error.code || error.message);
     res.status(500).json({ message: "Internal server error" });
   }
 };
@@ -317,7 +301,6 @@ export const modifyStatusNanoleafLights = async (req, res) => {
   try {
     const userId = req.userId;
     const { data } = req.body;
-    console.log("data", data);
 
     // Assurez-vous que vous avez une connexion à votre base de données et un moyen d'exécuter des requêtes SQL
     // Ici, je suppose que vous avez déjà une connexion établie à votre base de données et que vous utilisez une bibliothèque comme mysql ou pg pour exécuter des requêtes
@@ -339,10 +322,9 @@ export const modifyStatusNanoleafLights = async (req, res) => {
         await new Promise((resolve, reject) => {
           db.query(updateQuery, [state, id_light, userId], (error, results) => {
             if (error) {
-              console.error("Error updating light:", error);
+              console.error("Error updating light:", error.code || error.message);
               return reject(error);
             } else {
-              console.log(`Updated light ${id_light}`);
               resolve(results);
             }
           });
@@ -352,7 +334,7 @@ export const modifyStatusNanoleafLights = async (req, res) => {
 
     return res.status(200).json({ message: "Lights updated successfully" });
   } catch (error) {
-    console.error("Error updating lights:", error);
+    console.error("Error updating lights:", error.code || error.message);
     return res
       .status(500)
       .json({ message: "An error occurred while updating lights" });

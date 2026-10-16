@@ -8,16 +8,15 @@ export const getAllRooms = async (req, res) => {
       [userId],
       (error, results) => {
         if (error) {
-          console.error("Error executing query:", error);
+          console.error("Error executing query:", error.code || error.message);
           res.status(500).json({ message: "Failed to execute query" });
         } else {
-          console.log("Results:", results);
           res.status(200).json(results);
         }
       }
     );
   } catch (error) {
-    console.error("Error:", error);
+    console.error("Error:", error.code || error.message);
     res.status(500).json({ message: "Internal server error" });
   }
 };
@@ -25,9 +24,7 @@ export const getAllRooms = async (req, res) => {
 export const createRoom = async (req, res) => {
   try {
     const { name } = req.body;
-    console.log("name", name);
     const userId = req.userId;
-    console.log("userId", userId);
 
     // Input validation
     if (!name) {
@@ -55,7 +52,7 @@ export const createRoom = async (req, res) => {
     // If insertion failed for some reason
     //   res.status(500).json({ message: "Failed to create room" });
   } catch (error) {
-    console.error("Error creating room:", error);
+    console.error("Error creating room:", error.code || error.message);
     res.status(500).json({ message: "Internal server error" });
   }
 };
