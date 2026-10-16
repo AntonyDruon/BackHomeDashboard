@@ -23,6 +23,8 @@ const pool = mysql.createPool({
   waitForConnections: true,
   connectionLimit: 10,
   enableKeepAlive: true,
+  // DATE renvoyées telles quelles ("2026-10-20") : évite les décalages de fuseau
+  dateStrings: ["DATE"],
 });
 
 pool.query("SELECT 1", (err) => {

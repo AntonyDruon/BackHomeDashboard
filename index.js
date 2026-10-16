@@ -1,5 +1,6 @@
 import express from "express";
 import cors from "cors";
+import { fileURLToPath } from "node:url";
 import "./db.js"; // charge .env et vérifie les variables avant tout
 import routes from "./src/route/route.js";
 
@@ -9,14 +10,47 @@ app.disable("x-powered-by");
 // Derrière nginx : nécessaire pour que la limite de débit voie la vraie IP
 if (process.env.TRUST_PROXY) app.set("trust proxy", Number(process.env.TRUST_PROXY));
 
+// En-têtes de sécurité (web app + API)
+app.use((req, res, next) => {
+  res.set({
+    "Content-Security-Policy":
+      "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; " +
+      "connect-src 'self'; manifest-src 'self'; worker-src 'self'; " +
+      "base-uri 'none'; form-action 'self'; frame-ancestors 'none'; object-src 'none'",
+    "X-Content-Type-Options": "nosniff",
+    "X-Frame-Options": "DENY",
+    "Referrer-Policy": "no-referrer",
+    "Permissions-Policy": "camera=(), microphone=(), geolocation=()",
+  });
+  next();
+});
+
 // L'app mobile n'a pas besoin de CORS. Activé seulement si une origine web
-// est listée dans CORS_ORIGIN (séparées par des virgules).
+// externe est listée dans CORS_ORIGIN (séparées par des virgules).
 if (process.env.CORS_ORIGIN) {
   app.use(cors({ origin: process.env.CORS_ORIGIN.split(",").map((s) => s.trim()) }));
 }
 
+// Web app (PWA) : fichiers statiques du dossier web/
+app.use(
+  express.static(fileURLToPath(new URL("./web", import.meta.url)), {
+    index: "index.html",
+    setHeaders: (res, path) => {
+      // index et service worker toujours revérifiés : les mises à jour arrivent tout de suite
+      if (/(index\.html|sw\.js|manifest\.webmanifest)$/.test(path)) {
+        res.set("Cache-Control", "no-cache");
+      } else {
+        res.set("Cache-Control", "public, max-age=3600");
+      }
+    },
+  })
+);
+
 app.use(express.json({ limit: "100kb" }));
 app.use("/", routes);
+
+// Route inconnue
+app.use((req, res) => res.status(404).json({ message: "Not found" }));
 
 // Erreurs non gérées (JSON invalide, etc.) : pas de pile d'appel renvoyée
 app.use((err, req, res, next) => {

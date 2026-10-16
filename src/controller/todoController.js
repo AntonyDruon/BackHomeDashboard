@@ -1,4 +1,7 @@
-import db from "../../db.js"; // Assurez-vous que votre fichier de base de données est importé correctement
+import db from "../../db.js";
+
+const STATUSES = ["a faire", "en cours", "terminé"];
+const PRIORITIES = ["bas", "moyen", "haut"]; // Assurez-vous que votre fichier de base de données est importé correctement
 
 // Récupérer toutes les tâches pour un utilisateur
 export const getTodos = (req, res) => {
@@ -27,7 +30,7 @@ export const createTodo = (req, res) => {
     const { title, date, status, priorite } = req.body;
     const userId = req.userId; // ID de l'utilisateur depuis le token
 
-    if (!title || !date || !status || !priorite) {
+    if (!title || !date || !STATUSES.includes(status) || !PRIORITIES.includes(priorite)) {
       return res.status(400).json({ message: "All fields are required" });
     }
 
@@ -64,10 +67,17 @@ export const updateTodo = (req, res) => {
       "UPDATE todolist SET titre = ?, date = ?, status = ?, priorite = ?, updated_at = ? WHERE id_todo = ? AND id_user = ?";
     const values = [title, date, status, priorite, updatedAt, todoId, userId];
 
+    if (!title || !date || !STATUSES.includes(status) || !PRIORITIES.includes(priorite)) {
+      return res.status(400).json({ message: "Invalid fields" });
+    }
+
     db.query(query, values, (error, results) => {
       if (error) {
         console.error("Error executing query:", error.code || error.message);
         return res.status(500).json({ message: "Failed to update todo" });
+      }
+      if (results.affectedRows === 0) {
+        return res.status(404).json({ message: "Todo not found" });
       }
       res.status(200).json({ message: "Todo updated successfully" });
     });
@@ -111,10 +121,17 @@ export const updateDateTodo = (req, res) => {
       "UPDATE todolist SET date = ?, updated_at = ? WHERE id_todo = ? AND id_user = ?";
     const values = [date, updatedAt, todoId, userId];
 
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date || "")) {
+      return res.status(400).json({ message: "Invalid date" });
+    }
+
     db.query(query, values, (error, results) => {
       if (error) {
         console.error("Error executing query:", error.code || error.message);
         return res.status(500).json({ message: "Failed to update todo" });
+      }
+      if (results.affectedRows === 0) {
+        return res.status(404).json({ message: "Todo not found" });
       }
       res.status(200).json({ message: "Todo updated successfully" });
     });

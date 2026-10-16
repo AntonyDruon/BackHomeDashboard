@@ -157,3 +157,19 @@ export const deleteUser = async (req, res) => {
     if (conn) conn.release();
   }
 };
+
+// Profil de l'utilisateur connecté (jamais le hash)
+export const getMe = (req, res) => {
+  db.query(
+    "SELECT id, username, email, role FROM users WHERE id = ?",
+    [req.userId],
+    (err, rows) => {
+      if (err) {
+        console.error("Erreur lecture profil :", err.code);
+        return res.status(500).json({ error: "Erreur serveur" });
+      }
+      if (rows.length === 0) return res.status(404).json({ error: "Utilisateur non trouvé" });
+      res.json(rows[0]);
+    }
+  );
+};

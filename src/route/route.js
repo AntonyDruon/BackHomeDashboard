@@ -8,6 +8,7 @@ import {
   getUserRole,
   updateUser,
   deleteUser,
+  getMe,
 } from "../controller/userController.js";
 import { login } from "../controller/authController.js";
 import {
@@ -43,6 +44,15 @@ import {
   updateDateTodo,
 } from "../controller/todoController.js";
 import { getBus118 } from "../controller/transportController.js";
+import {
+  getLightsStatus,
+  pairHue,
+  unpairHue,
+  setHueLight,
+  pairNanoleaf,
+  unpairNanoleaf,
+  setNanoleafState,
+} from "../controller/homeLightsController.js";
 
 const router = express.Router();
 
@@ -66,6 +76,7 @@ const signupLimiter = rateLimit({
 // --- Utilisateurs ---
 router.post("/users/new", signupLimiter, createUser);
 router.post("/users/login", loginLimiter, login);
+router.get("/users/me", authMiddleware, getMe);
 router.get("/users/role/:id", authMiddleware, getUserRole); // :id ignoré, rôle de l'utilisateur connecté
 // Administration : réservé aux admins
 router.get("/users", authMiddleware, requireAdmin, getAllUsers);
@@ -85,6 +96,16 @@ router.get("/lights/getDataNanoleafBDD", authMiddleware, getDataNanoleafBDD);
 // URL appelée par l'app (nanoleafApiSlice) ; l'ancienne route est gardée
 router.put("/lights/modifyStatusNanoleafLights/all", authMiddleware, modifyStatusNanoleafLights);
 router.put("/lights/modifyStatusNanoleaf", authMiddleware, modifyStatusNanoleafLights);
+
+// Pilotage par le serveur (web app) : état, appairage, commandes
+const pairLimiter = rateLimit({ windowMs: 60 * 1000, limit: 10, standardHeaders: "draft-7", legacyHeaders: false });
+router.get("/lights/status", authMiddleware, getLightsStatus);
+router.post("/lights/hue/pair", authMiddleware, pairLimiter, pairHue);
+router.delete("/lights/hue/pair", authMiddleware, unpairHue);
+router.put("/lights/hue/:id", authMiddleware, setHueLight);
+router.post("/lights/nanoleaf/pair", authMiddleware, pairLimiter, pairNanoleaf);
+router.delete("/lights/nanoleaf/pair", authMiddleware, unpairNanoleaf);
+router.put("/lights/nanoleaf", authMiddleware, setNanoleafState);
 
 // --- Pièces ---
 router.get("/rooms", authMiddleware, getAllRooms);
