@@ -42,6 +42,7 @@ import {
   updateTitleTodo,
   updateDateTodo,
 } from "../controller/todoController.js";
+import { getBus118 } from "../controller/transportController.js";
 
 const router = express.Router();
 
@@ -99,6 +100,9 @@ router.delete("/notes/field/delete/:id", authMiddleware, deleteFieldNote);
 router.get("/notes/:id", authMiddleware, getNoteById);
 router.put("/notes/update/:id", authMiddleware, updateNote);
 router.delete("/notes/delete/:id", authMiddleware, deleteNote);
+
+// --- Transport (bus 118 temps réel, PRIM IDFM) ---
+router.get("/transport/118", authMiddleware, getBus118);
 
 // --- Todos ---
 router.get("/todos", authMiddleware, getTodos);
