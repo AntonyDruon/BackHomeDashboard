@@ -37,6 +37,9 @@ const ICONS = {
   refresh: '<path d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3M19.5 4.5v4.5H15"/>',
   chevL: '<path d="m14.5 5-7 7 7 7"/>',
   chevR: '<path d="m9.5 5 7 7-7 7"/>',
+  pc: '<rect x="6" y="2.5" width="12" height="19" rx="2"/><circle cx="12" cy="15" r="2.6"/><path d="M9 6.5h6M9 9h6"/>',
+  fan: '<circle cx="12" cy="12" r="1.6"/><path d="M12 10.4c0-3 .8-6.4 3.6-6.4 2.4 0 2.6 3.4.3 4.8L13.4 10M13.6 12c3 0 6.4.8 6.4 3.6 0 2.4-3.4 2.6-4.8.3L14 13.4M12 13.6c0 3-.8 6.4-3.6 6.4-2.4 0-2.6-3.4-.3-4.8l2.5-1.6M10.4 12c-3 0-6.4-.8-6.4-3.6 0-2.4 3.4-2.6 4.8-.3L10 10.6"/>',
+  power: '<path d="M12 3v8M7.5 6.3a7 7 0 1 0 9 0"/>',
 };
 const icon = (name) => {
   const t = document.createElement("template");
@@ -157,13 +160,14 @@ const TABS = [
   ["#/taches", "Tâches", "tasks"],
   ["#/notes", "Notes", "note"],
   ["#/lumieres", "Lumières", "bulb"],
+  ["#/pc", "PC", "pc", true], // administrateurs uniquement
 ];
 
 const renderTabbar = (active) => {
   document.querySelector(".tabbar")?.remove();
   if (!active) return;
   const nav = el("nav", { "aria-label": "Navigation principale" },
-    TABS.map(([href, label, ic]) =>
+    TABS.filter(([, , , adminOnly]) => !adminOnly || me?.role === "admin").map(([href, label, ic]) =>
       el("a", { href, "aria-current": href === active ? "page" : null }, icon(ic), label)
     )
   );
@@ -841,6 +845,7 @@ route(/^#\/$/, "#/", async (root) => {
     el("nav", { class: "nav-links" },
       el("a", { href: "#/calendrier" }, icon("calendar"), "Calendrier"),
       el("a", { href: "#/pieces" }, icon("room"), "Pièces"),
+      me?.role === "admin" ? el("a", { href: "#/pc" }, icon("pc"), "PC") : null,
       me?.role === "admin" ? el("a", { href: "#/admin" }, icon("admin"), "Utilisateurs") : null)
   );
 
@@ -896,6 +901,234 @@ route(/^#\/$/, "#/", async (root) => {
 
   await Promise.all([loadBus(), loadTasks(), loadLights()]);
   return every(30000, loadBus);
+});
+
+/* ================= PC (agent Windows) ================= */
+const SVG_NS = "http://www.w3.org/2000/svg";
+const svg = (tag, attrs = {}, ...children) => {
+  const n = document.createElementNS(SVG_NS, tag);
+  for (const [k, v] of Object.entries(attrs)) if (v != null) n.setAttribute(k, String(v));
+  for (const c of children.flat()) if (c != null) n.append(c instanceof Node ? c : document.createTextNode(String(c)));
+  return n;
+};
+
+const tempLevel = (t) => (t == null ? "na" : t >= 80 ? "hot" : t >= 65 ? "warm" : "cool");
+const fmt = (v, unit = "", digits = 0) => (v == null ? "–" : `${Number(v).toFixed(digits)}${unit}`);
+const ago = (iso) => {
+  if (!iso) return "jamais";
+  const m = Math.round((Date.now() - Date.parse(iso)) / 60000);
+  if (m < 1) return "à l'instant";
+  if (m < 60) return `il y a ${m} min`;
+  const h = Math.round(m / 60);
+  return h < 24 ? `il y a ${h} h` : `le ${new Date(iso).toLocaleDateString("fr-FR")}`;
+};
+
+// Jauge en arc : 20 °C à gauche, 100 °C à droite
+const gauge = (label, temp, sub) => {
+  const R = 52, CX = 64, CY = 64, START = Math.PI * 0.85, END = Math.PI * 2.15;
+  const pt = (a) => [CX + R * Math.cos(a), CY + R * Math.sin(a)];
+  const arc = (a0, a1) => {
+    const [x0, y0] = pt(a0), [x1, y1] = pt(a1);
+    return `M${x0.toFixed(1)} ${y0.toFixed(1)} A${R} ${R} 0 ${a1 - a0 > Math.PI ? 1 : 0} 1 ${x1.toFixed(1)} ${y1.toFixed(1)}`;
+  };
+  const ratio = temp == null ? 0 : Math.max(0, Math.min(1, (temp - 20) / 80));
+  return el("figure", { class: `gauge ${tempLevel(temp)}` },
+    svg("svg", { viewBox: "0 0 128 104", "aria-hidden": "true" },
+      svg("path", { d: arc(START, END), class: "g-track" }),
+      ratio > 0.005 ? svg("path", { d: arc(START, START + (END - START) * ratio), class: "g-fill" }) : null),
+    el("figcaption", {},
+      el("span", { class: "g-temp" }, temp == null ? "–" : Math.round(temp), el("small", {}, "°C")),
+      el("span", { class: "g-label" }, label),
+      el("span", { class: "g-sub" }, sub))
+  );
+};
+
+// Courbes des températures CPU / GPU sur 24 h
+const historyChart = (points) => {
+  if (points.length < 2) return el("p", { class: "empty" }, "L'historique se remplit dès que le PC est allumé.");
+  const W = 340, H = 150, L = 30, B = 20, T = 8, Rr = 6;
+  const t0 = Date.now() - 24 * 3600e3, t1 = Date.now();
+  const temps = points.flatMap((p) => [p.cpuTemp, p.gpuTemp]).filter((v) => v != null);
+  const lo = Math.max(0, Math.floor((Math.min(...temps) - 5) / 10) * 10);
+  const hi = Math.min(110, Math.ceil((Math.max(...temps) + 5) / 10) * 10);
+  const x = (t) => L + ((t - t0) / (t1 - t0)) * (W - L - Rr);
+  const y = (v) => T + (1 - (v - lo) / (hi - lo)) * (H - T - B);
+  const line = (key) => {
+    let d = "", prev = null;
+    for (const p of points) {
+      if (p[key] == null) { prev = null; continue; }
+      const gap = prev && p.t - prev.t > 5 * 60e3; // PC éteint : on coupe la ligne
+      d += `${!prev || gap ? "M" : "L"}${x(p.t).toFixed(1)} ${y(p[key]).toFixed(1)} `;
+      prev = p;
+    }
+    return d;
+  };
+  const grid = [];
+  for (let v = lo; v <= hi; v += 10) {
+    grid.push(svg("line", { x1: L, x2: W - Rr, y1: y(v), y2: y(v), class: "c-grid" }),
+      svg("text", { x: L - 6, y: y(v) + 4, class: "c-axis", "text-anchor": "end" }, v));
+  }
+  for (let h = 24; h >= 0; h -= 6) {
+    const t = t1 - h * 3600e3;
+    grid.push(svg("text", { x: x(t), y: H - 4, class: "c-axis", "text-anchor": "middle" },
+      h === 0 ? "maint." : `${pad(new Date(t).getHours())} h`));
+  }
+  return el("figure", { class: "chart" },
+    svg("svg", { viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": "Températures CPU et GPU sur 24 heures" },
+      grid,
+      svg("path", { d: line("gpuTemp"), class: "c-line c-gpu" }),
+      svg("path", { d: line("cpuTemp"), class: "c-line c-cpu" })),
+    el("figcaption", { class: "legend" },
+      el("span", { class: "k-cpu" }, "CPU"), el("span", { class: "k-gpu" }, "Carte graphique"), el("span", {}, "°C, moyenne par minute")));
+};
+
+const PRESETS = [
+  ["Blanc chaud", "#ffc98a"], ["Blanc", "#ffffff"], ["Bleu", "#2f6bff"], ["Cyan", "#18d6ff"],
+  ["Violet", "#8f4dff"], ["Rose", "#ff3d9a"], ["Rouge", "#ff2020"], ["Vert", "#1ed760"], ["Orange", "#ff7a00"],
+];
+
+route(/^#\/pc$/, "#/pc", async (root) => {
+  root.append(head("PC"));
+  if (me?.role !== "admin") {
+    root.append(el("p", { class: "empty" }, "Réservé aux administrateurs."));
+    return;
+  }
+  const statusLine = el("p", { class: "pc-state" }, "Connexion au PC…");
+  const gauges = el("div", { class: "gauges" });
+  const details = el("div");
+  const chartSlot = el("section", { class: "panel" }, loading());
+  const fansSlot = el("div");
+  const lightSlot = el("div");
+  root.append(statusLine, gauges, details,
+    el("h2", {}, "Températures sur 24 h"), chartSlot,
+    fansSlot, lightSlot);
+
+  let fanInfo = null, lighting = null, online = false;
+
+  const drawStatus = (s) => {
+    online = s.online;
+    if (!s.configured) {
+      setKids(statusLine, el("span", { class: "dot-off" }), "Agent du PC pas encore installé.");
+      return;
+    }
+    if (!s.online) {
+      setKids(statusLine, el("span", { class: "dot-off" }), `PC éteint · dernière mesure ${ago(s.lastSeen)}`);
+      setKids(gauges); setKids(details);
+      return;
+    }
+    const st = s.status;
+    setKids(statusLine, el("span", { class: "dot-on" }), `${st.host} · allumé depuis ${Math.floor(st.uptimeSeconds / 3600)} h ${pad(Math.floor(st.uptimeSeconds % 3600 / 60))}`);
+    setKids(gauges,
+      gauge("Processeur", st.cpu?.temp, `${fmt(st.cpu?.load, " %")} · ${fmt(st.cpu?.power, " W")}`),
+      st.gpu ? gauge("Carte graphique", st.gpu.temp, `${fmt(st.gpu.load, " %")} · ${fmt(st.gpu.power, " W")}`) : null);
+
+    const rows = [
+      ["Processeur", st.cpu?.name, `${fmt(st.cpu?.clock, " MHz")} · cœur le plus chaud ${fmt(st.cpu?.tempMax, " °C")}`],
+      st.gpu && ["Carte graphique", st.gpu.name,
+        `point chaud ${fmt(st.gpu.hotspot, " °C")} · VRAM ${fmt(st.gpu.vramUsedMb / 1024, " Go", 1)} / ${fmt(st.gpu.vramTotalMb / 1024, " Go", 0)} · ventilo ${fmt(st.gpu.fanRpm, " tr/min")}`],
+      ["Mémoire", `${fmt(st.memory?.usedGb, " Go", 1)} / ${fmt(st.memory?.totalGb, " Go", 0)}`, `${fmt(st.memory?.load, " %")} utilisée`],
+      ...(st.storage || []).map((d) => ["SSD", d.name, `${fmt(d.temp, " °C")} · ${fmt(d.usedPercent, " % plein")}`]),
+      ...(st.coolers || []).map((c) => ["Refroidissement", c.name, c.sensors.map((x) => `${x.name} ${x.value}`).join(" · ")]),
+    ].filter(Boolean);
+    setKids(details, el("ul", { class: "list panel" }, rows.map(([k, v, sub]) =>
+      el("li", {}, el("div", { class: "row-main" },
+        el("div", { class: "row-sub" }, k), el("div", { class: "row-title" }, v || "–"), el("div", { class: "row-sub" }, sub))))));
+    drawFans(st);
+  };
+
+  const drawFans = (st) => {
+    const fans = st?.board?.fans || [];
+    const profile = fanInfo?.profile || st?.fanProfile || "auto";
+    const profiles = fanInfo?.profiles || [{ id: "auto", label: "Auto (BIOS)" }, { id: "silencieux", label: "Silencieux" }, { id: "normal", label: "Normal" }, { id: "performance", label: "Performance" }];
+    setKids(fansSlot,
+      el("h2", {}, "Ventilation"),
+      el("section", { class: "panel" },
+        el("div", { class: "segmented", role: "group", "aria-label": "Profil des ventilateurs" },
+          profiles.map((p) => el("button", {
+            type: "button", "aria-pressed": String(p.id === profile), disabled: !online,
+            onclick: async () => {
+              try {
+                await api("/pc/fans", { method: "POST", body: { profile: p.id } });
+                fanInfo = { ...(fanInfo || {}), profile: p.id, profiles };
+                drawFans(st); toast(`Profil ${p.label.toLowerCase()} appliqué`);
+              } catch (e) { toast(e.message, true); }
+            },
+          }, p.label))),
+        el("p", { class: "hint" }, profile === "auto"
+          ? "La carte mère gère ses ventilateurs selon le BIOS."
+          : "Les ventilateurs de la carte mère suivent la température du processeur (jamais sous 35 %, 100 % au-delà de 90 °C)."),
+        fans.length
+          ? el("ul", { class: "list" }, fans.map((f) => el("li", {}, icon("fan"),
+              el("div", { class: "row-main" }, el("div", { class: "row-title" }, f.name),
+                el("div", { class: "row-sub" }, `${fmt(f.rpm, " tr/min")}${f.percent != null ? ` · ${fmt(f.percent, " %")}` : ""}`)))))
+          : el("p", { class: "empty" }, online ? "Aucun ventilateur détecté sur la carte mère." : "PC éteint."),
+        el("p", { class: "small" }, "Pompe et ventilateurs de l'AIO : gérés par les profils d'iCUE.")));
+  };
+
+  const drawLighting = () => {
+    const l = lighting;
+    const colorInput = el("input", { type: "color", value: l?.color || "#ffffff", "aria-label": "Couleur personnalisée" });
+    const bri = el("input", { type: "range", min: 5, max: 100, value: l?.brightness ?? 100, "aria-label": "Intensité" });
+    const apply = async (color) => {
+      try {
+        const r = await api("/pc/lighting", { method: "POST", body: { mode: "color", color, brightness: Number(bri.value) } });
+        lighting = { ...(lighting || {}), mode: "color", color, brightness: Number(bri.value) };
+        if (r.errors?.length) toast(r.errors.join(" · "), true); else toast("Éclairage appliqué");
+        drawLighting();
+      } catch (e) { toast(e.message, true); }
+    };
+    const devices = [
+      ...(l?.corsair?.devices || []).map((d) => [d.model, `Corsair · ${d.type}${d.battery != null ? ` · batterie ${d.battery} %` : ""}`]),
+      ...(l?.aura?.devices || []).map((d) => [d.name, `ASUS Aura · ${d.lights} zones`]),
+    ];
+    setKids(lightSlot,
+      el("h2", {}, "Éclairage"),
+      el("section", { class: "panel" },
+        el("p", { class: "hint" }, !online ? "PC éteint."
+          : l?.mode === "color" ? "Couleur imposée depuis l'app sur Corsair et la carte mère."
+          : "Les profils d'iCUE et d'Armoury Crate sont actifs."),
+        el("div", { class: "swatches" },
+          PRESETS.map(([name, hex]) => el("button", {
+            class: "swatch", style: { background: hex }, "aria-label": name, title: name, disabled: !online,
+            "aria-pressed": String(l?.mode === "color" && l?.color?.toLowerCase() === hex),
+            onclick: () => apply(hex),
+          })),
+          el("label", { class: "swatch custom", title: "Autre couleur" }, colorInput)),
+        el("label", { class: "field" }, el("span", {}, "Intensité"), bri),
+        el("div", { class: "actions-row" },
+          el("button", { class: "btn", disabled: !online, onclick: () => apply("#000000") }, "Éteindre les LED"),
+          el("button", { class: "btn ghost", disabled: !online || l?.mode !== "color", onclick: async () => {
+            try { await api("/pc/lighting", { method: "POST", body: { mode: "auto" } }); lighting = { ...(lighting || {}), mode: "auto" }; toast("Profils iCUE et Armoury Crate rétablis"); drawLighting(); }
+            catch (e) { toast(e.message, true); }
+          } }, "Revenir aux profils")),
+        devices.length ? el("ul", { class: "list" }, devices.map(([n, sub]) =>
+          el("li", {}, el("div", { class: "row-main" }, el("div", { class: "row-title" }, n), el("div", { class: "row-sub" }, sub))))) : null,
+        l && l.corsair && !l.corsair.connected ? el("p", { class: "small" }, `iCUE : ${l.corsair.state}`) : null,
+        l && l.aura && !l.aura.available ? el("p", { class: "small" }, `ASUS : ${l.aura.state}`) : null));
+    colorInput.addEventListener("change", () => apply(colorInput.value));
+    bri.addEventListener("change", () => { if (lighting?.mode === "color") apply(lighting.color); });
+  };
+
+  const loadStatus = async () => {
+    try { drawStatus(await api("/pc/status")); } catch (e) { setKids(statusLine, e.message); }
+  };
+  const loadHistory = async () => {
+    try { setKids(chartSlot, historyChart(await api("/pc/history?hours=24"))); }
+    catch (e) { setKids(chartSlot, el("div", { class: "error-box" }, e.message)); }
+  };
+  const loadControls = async () => {
+    if (!online) { drawLighting(); return; }
+    const [f, l] = await Promise.allSettled([api("/pc/fans"), api("/pc/lighting")]);
+    if (f.status === "fulfilled") fanInfo = f.value;
+    lighting = l.status === "fulfilled" ? l.value : null;
+    drawLighting();
+  };
+
+  await loadStatus();
+  await Promise.all([loadHistory(), loadControls()]);
+  const stop1 = every(5000, loadStatus);
+  const stop2 = every(60000, loadHistory);
+  return () => { stop1(); stop2(); };
 });
 
 /* ================= Démarrage ================= */

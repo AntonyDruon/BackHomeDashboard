@@ -456,3 +456,38 @@ li.done .row-title { color: var(--faint); text-decoration: line-through; }
 @keyframes spin { to { transform: rotate(360deg); } }
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
 .row-btn { background: none; border: 0; padding: 0; text-align: left; color: inherit; }
+
+/* ---------- PC ---------- */
+.pc-state { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 14px; margin: -6px 0 14px; }
+.dot-on, .dot-off { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+.dot-on { background: var(--ok); box-shadow: 0 0 8px var(--ok); }
+.dot-off { background: var(--faint); }
+.gauges { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px; }
+.gauge { margin: 0; background: #140c18; border-radius: var(--r-lg); padding: 10px 8px 14px; position: relative; text-align: center; box-shadow: inset 0 0 0 1px #2c1d33; }
+.gauge svg { width: 100%; max-width: 170px; display: block; margin: 0 auto; }
+.g-track { fill: none; stroke: #2e2036; stroke-width: 9; stroke-linecap: round; }
+.g-fill { fill: none; stroke: var(--g, var(--ok)); stroke-width: 9; stroke-linecap: round; filter: drop-shadow(0 0 6px var(--g, var(--ok))); }
+.gauge.cool { --g: #7fd1a3; } .gauge.warm { --g: var(--amber); } .gauge.hot { --g: var(--danger); } .gauge.na { --g: var(--faint); }
+.gauge figcaption { position: absolute; left: 0; right: 0; top: 34%; display: flex; flex-direction: column; align-items: center; }
+.g-temp { font: 700 38px/1 var(--round); font-variant-numeric: tabular-nums; color: var(--g); }
+.g-temp small { font-size: 15px; margin-left: 1px; }
+.g-label { font-size: 13px; color: var(--text); margin-top: 6px; }
+.g-sub { font-size: 12px; color: var(--faint); font-variant-numeric: tabular-nums; }
+.chart { margin: 0; }
+.chart svg { width: 100%; display: block; }
+.c-grid { stroke: #3a2a43; stroke-width: 1; }
+.c-axis { fill: var(--faint); font-size: 10px; font-family: var(--sans); }
+.c-line { fill: none; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.c-cpu { stroke: var(--amber); } .c-gpu { stroke: #8fb8ff; }
+.legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px; color: var(--faint); margin-top: 6px; }
+.legend span::before { content: ""; display: inline-block; width: 10px; height: 3px; border-radius: 2px; margin-right: 5px; vertical-align: middle; background: currentColor; }
+.legend .k-cpu { color: var(--amber); } .legend .k-gpu { color: #8fb8ff; }
+.legend span:last-child::before { display: none; }
+.swatches { display: flex; flex-wrap: wrap; gap: 10px; margin: 6px 0 16px; }
+.swatch { width: 40px; height: 40px; border-radius: 50%; border: 2px solid rgba(255,255,255,.15); padding: 0; position: relative; overflow: hidden; }
+.swatch[aria-pressed="true"] { box-shadow: 0 0 0 3px var(--night), 0 0 0 5px var(--text); }
+.swatch.custom { background: conic-gradient(#ff2020, #ffd400, #1ed760, #18d6ff, #2f6bff, #8f4dff, #ff3d9a, #ff2020); cursor: pointer; }
+.swatch.custom input { opacity: 0; position: absolute; inset: 0; width: 100%; height: 100%; cursor: pointer; }
+.field input[type="range"] { width: 100%; accent-color: var(--amber); }
+.actions-row { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; }
+@media (max-width: 360px) { .g-temp { font-size: 30px; } }
