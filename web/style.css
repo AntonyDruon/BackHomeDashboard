@@ -464,7 +464,7 @@ li.done .row-title { color: var(--faint); text-decoration: line-through; }
 .dot-off { background: var(--faint); }
 .gauges { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px; }
 .gauge { margin: 0; background: #140c18; border-radius: var(--r-lg); padding: 10px 8px 14px; position: relative; text-align: center; box-shadow: inset 0 0 0 1px #2c1d33; }
-.gauge svg { width: 100%; max-width: 170px; display: block; margin: 0 auto; }
+.gauge svg { width: 100%; height: auto; max-width: 170px; display: block; margin: 0 auto; }
 .g-track { fill: none; stroke: #2e2036; stroke-width: 9; stroke-linecap: round; }
 .g-fill { fill: none; stroke: var(--g, var(--ok)); stroke-width: 9; stroke-linecap: round; filter: drop-shadow(0 0 6px var(--g, var(--ok))); }
 .gauge.cool { --g: #7fd1a3; } .gauge.warm { --g: var(--amber); } .gauge.hot { --g: var(--danger); } .gauge.na { --g: var(--faint); }
@@ -474,7 +474,7 @@ li.done .row-title { color: var(--faint); text-decoration: line-through; }
 .g-label { font-size: 13px; color: var(--text); margin-top: 6px; }
 .g-sub { font-size: 12px; color: var(--faint); font-variant-numeric: tabular-nums; }
 .chart { margin: 0; }
-.chart svg { width: 100%; display: block; }
+.chart svg { width: 100%; height: auto; display: block; }
 .c-grid { stroke: #3a2a43; stroke-width: 1; }
 .c-axis { fill: var(--faint); font-size: 10px; font-family: var(--sans); }
 .c-line { fill: none; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }

@@ -970,7 +970,7 @@ const historyChart = (points) => {
   }
   for (let h = 24; h >= 0; h -= 6) {
     const t = t1 - h * 3600e3;
-    grid.push(svg("text", { x: x(t), y: H - 4, class: "c-axis", "text-anchor": "middle" },
+    grid.push(svg("text", { x: x(t), y: H - 4, class: "c-axis", "text-anchor": h === 0 ? "end" : h === 24 ? "start" : "middle" },
       h === 0 ? "maint." : `${pad(new Date(t).getHours())} h`));
   }
   return el("figure", { class: "chart" },
@@ -1013,7 +1013,7 @@ route(/^#\/pc$/, "#/pc", async (root) => {
     }
     if (!s.online) {
       setKids(statusLine, el("span", { class: "dot-off" }), `PC éteint · dernière mesure ${ago(s.lastSeen)}`);
-      setKids(gauges); setKids(details);
+      setKids(gauges); setKids(details); setKids(fansSlot); setKids(lightSlot);
       return;
     }
     const st = s.status;
@@ -1066,6 +1066,7 @@ route(/^#\/pc$/, "#/pc", async (root) => {
   };
 
   const drawLighting = () => {
+    if (!online) { setKids(lightSlot); return; }
     const l = lighting;
     const colorInput = el("input", { type: "color", value: l?.color || "#ffffff", "aria-label": "Couleur personnalisée" });
     const bri = el("input", { type: "range", min: 5, max: 100, value: l?.brightness ?? 100, "aria-label": "Intensité" });
@@ -1110,7 +1111,9 @@ route(/^#\/pc$/, "#/pc", async (root) => {
   };
 
   const loadStatus = async () => {
+    const was = online;
     try { drawStatus(await api("/pc/status")); } catch (e) { setKids(statusLine, e.message); }
+    if (online && !was && lighting === null) loadControls(); // le PC vient de s'allumer
   };
   const loadHistory = async () => {
     try { setKids(chartSlot, historyChart(await api("/pc/history?hours=24"))); }
