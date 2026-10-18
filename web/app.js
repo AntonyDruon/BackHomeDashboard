@@ -1003,7 +1003,7 @@ route(/^#\/pc$/, "#/pc", async (root) => {
     el("h2", {}, "Températures sur 24 h"), chartSlot,
     fansSlot, lightSlot);
 
-  let fanInfo = null, lighting = null, online = false;
+  let fanInfo = null, lighting = null, online = false, wakeAt = 0;
 
   const drawStatus = (s) => {
     online = s.online;
@@ -1012,10 +1012,21 @@ route(/^#\/pc$/, "#/pc", async (root) => {
       return;
     }
     if (!s.online) {
-      setKids(statusLine, el("span", { class: "dot-off" }), `PC éteint · dernière mesure ${ago(s.lastSeen)}`);
-      setKids(gauges); setKids(details); setKids(fansSlot); setKids(lightSlot);
+      const waking = wakeAt && Date.now() - wakeAt < 3 * 60 * 1000;
+      setKids(statusLine, el("span", { class: "dot-off" }),
+        waking ? "Démarrage en cours… (1 à 2 minutes)" : `PC éteint · dernière mesure ${ago(s.lastSeen)}`);
+      setKids(gauges, s.canWake ? el("button", {
+        class: "btn primary block wake-btn", disabled: waking,
+        onclick: async (e) => {
+          e.currentTarget.disabled = true;
+          try { await api("/pc/wake", { method: "POST", body: {} }); wakeAt = Date.now(); toast("Allumage demandé"); loadStatus(); }
+          catch (ex) { toast(ex.message, true); e.currentTarget.disabled = false; }
+        },
+      }, icon("power"), waking ? "Démarrage demandé" : "Allumer le PC") : null);
+      setKids(details); setKids(fansSlot); setKids(lightSlot);
       return;
     }
+    wakeAt = 0;
     const st = s.status;
     setKids(statusLine, el("span", { class: "dot-on" }), `${st.host} · allumé depuis ${Math.floor(st.uptimeSeconds / 3600)} h ${pad(Math.floor(st.uptimeSeconds % 3600 / 60))}`);
     setKids(gauges,

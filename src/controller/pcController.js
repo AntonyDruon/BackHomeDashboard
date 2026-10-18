@@ -1,6 +1,7 @@
 // Relais vers l'agent du PC Windows (HomeDashboard Agent) + historique des capteurs.
 // L'agent n'accepte que ce serveur (IP + jeton) ; l'app ne lui parle jamais directement.
 import fs from "node:fs";
+import dgram from "node:dgram";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -93,6 +94,7 @@ const fail = (res, e) => {
 export const getPcStatus = (req, res) => {
   res.json({
     configured: !!(AGENT_URL && AGENT_TOKEN),
+    canWake: PC_MAC.length === 12,
     online,
     lastSeen,
     status: online ? latest : null,
@@ -128,3 +130,45 @@ export const setPcFans = async (req, res) => {
   }
   try { res.json(await agent("/fans", { method: "POST", body: { profile } })); } catch (e) { fail(res, e); }
 };
+
+// ---------- Wake-on-LAN : « paquet magique » envoyé sur le réseau local ----------
+const PC_MAC = (process.env.PC_MAC || "").replace(/[^0-9a-f]/gi, "").toLowerCase();
+const WOL_BROADCAST = process.env.WOL_BROADCAST || "192.168.1.255";
+let lastWake = 0;
+
+const magicPacket = (mac) => {
+  const m = Buffer.from(mac, "hex");
+  return Buffer.concat([Buffer.alloc(6, 0xff), ...Array(16).fill(m)]);
+};
+
+const sendUdp = (packet, port) =>
+  new Promise((resolve, reject) => {
+    const sock = dgram.createSocket("udp4");
+    sock.once("error", (e) => { sock.close(); reject(e); });
+    sock.bind(() => {
+      sock.setBroadcast(true);
+      sock.send(packet, port, WOL_BROADCAST, (e) => { sock.close(); e ? reject(e) : resolve(); });
+    });
+  });
+
+export const wakePc = async (req, res) => {
+  if (PC_MAC.length !== 12) return res.status(503).json({ message: "Adresse MAC du PC non configurée" });
+  if (online) return res.json({ message: "Le PC est déjà allumé", online: true });
+  if (Date.now() - lastWake < 10 * 1000) return res.status(429).json({ message: "Démarrage déjà demandé, patiente quelques secondes" });
+  lastWake = Date.now();
+  try {
+    const packet = magicPacket(PC_MAC);
+    // 3 envois sur les ports 9 et 7 : le paquet UDP peut se perdre
+    for (let i = 0; i < 3; i++) {
+      await sendUdp(packet, 9);
+      await sendUdp(packet, 7);
+    }
+    console.log("PC : demande d'allumage envoyée");
+    res.json({ message: "Allumage demandé" });
+  } catch (e) {
+    console.error("Wake-on-LAN :", e.code || e.message);
+    res.status(500).json({ message: "Envoi du paquet de réveil impossible" });
+  }
+};
+
+export const pcWakeConfigured = () => PC_MAC.length === 12;
