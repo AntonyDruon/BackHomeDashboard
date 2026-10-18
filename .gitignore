@@ -34,3 +34,6 @@ yarn-error.*
 # typescript
 *.tsbuildinfo
 !.env.example
+
+# historique local (capteurs PC)
+data/

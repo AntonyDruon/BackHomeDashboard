@@ -53,6 +53,14 @@ import {
   unpairNanoleaf,
   setNanoleafState,
 } from "../controller/homeLightsController.js";
+import {
+  getPcStatus,
+  getPcHistory,
+  getPcLighting,
+  setPcLighting,
+  getPcFans,
+  setPcFans,
+} from "../controller/pcController.js";
 
 const router = express.Router();
 
@@ -106,6 +114,14 @@ router.put("/lights/hue/:id", authMiddleware, setHueLight);
 router.post("/lights/nanoleaf/pair", authMiddleware, pairLimiter, pairNanoleaf);
 router.delete("/lights/nanoleaf/pair", authMiddleware, unpairNanoleaf);
 router.put("/lights/nanoleaf", authMiddleware, setNanoleafState);
+
+// --- PC Windows (agent) : réservé aux administrateurs ---
+router.get("/pc/status", authMiddleware, requireAdmin, getPcStatus);
+router.get("/pc/history", authMiddleware, requireAdmin, getPcHistory);
+router.get("/pc/lighting", authMiddleware, requireAdmin, getPcLighting);
+router.post("/pc/lighting", authMiddleware, requireAdmin, setPcLighting);
+router.get("/pc/fans", authMiddleware, requireAdmin, getPcFans);
+router.post("/pc/fans", authMiddleware, requireAdmin, setPcFans);
 
 // --- Pièces ---
 router.get("/rooms", authMiddleware, getAllRooms);

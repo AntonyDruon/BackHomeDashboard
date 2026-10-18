@@ -1,0 +1,59 @@
+name: Agent PC (Windows)
+
+on:
+  push:
+    branches: [master]
+    paths: ["pc-agent/**", ".github/workflows/pc-agent.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: SDK iCUE (DLL officielle) et installateur PawnIO
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force pc-agent/native, dl | Out-Null
+          Invoke-WebRequest https://github.com/CorsairOfficial/cue-sdk/releases/download/v4.0.84/iCUESDK_4.0.84.zip -OutFile dl/icuesdk.zip
+          Expand-Archive dl/icuesdk.zip dl/icuesdk -Force
+          Copy-Item dl/icuesdk/iCUESDK/redist/x64/iCUESDK.x64_2019.dll pc-agent/native/
+          Invoke-WebRequest https://github.com/namazso/PawnIO.Setup/releases/download/2.2.0/PawnIO_setup.exe -OutFile dl/PawnIO_setup.exe
+
+      - name: Compilation
+        shell: pwsh
+        run: dotnet publish pc-agent/HomeDashboardAgent.csproj -c Release -o out --nologo
+
+      - name: Dossier d'installation
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force dist | Out-Null
+          Copy-Item out/HomeDashboardAgent.exe, out/iCUESDK.x64_2019.dll, dl/PawnIO_setup.exe dist/
+          $utf8bom = New-Object System.Text.UTF8Encoding $true
+          foreach ($f in Get-ChildItem pc-agent/install/*.ps1) {
+            $txt = (Get-Content $f -Raw -Encoding utf8) -replace "`r?`n", "`r`n"
+            [IO.File]::WriteAllText((Join-Path (Resolve-Path dist) $f.Name), $txt, $utf8bom)
+          }
+          $cmd = (Get-Content pc-agent/install/installer.cmd -Raw) -replace "`r?`n", "`r`n"
+          [IO.File]::WriteAllText((Join-Path (Resolve-Path dist) 'installer.cmd'), $cmd)
+          Compress-Archive dist/* HomeDashboardAgent.zip -Force
+          Get-ChildItem dist
+
+      - name: Publication (release « pc-agent-latest »)
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view pc-agent-latest 2>$null
+          if ($LASTEXITCODE -ne 0) {
+            gh release create pc-agent-latest --title "HomeDashboard Agent (PC)" --notes "Construit automatiquement depuis pc-agent/." --prerelease
+          }
+          gh release upload pc-agent-latest HomeDashboardAgent.zip --clobber
