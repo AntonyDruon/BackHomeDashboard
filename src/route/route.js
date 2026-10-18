@@ -84,7 +84,15 @@ const signupLimiter = rateLimit({
 });
 
 // --- Utilisateurs ---
-router.post("/users/new", signupLimiter, createUser);
+// Inscription : ouverte seulement si ALLOW_SIGNUP=true, sinon réservée aux administrateurs
+const signupOpen = () => process.env.ALLOW_SIGNUP === "true";
+router.get("/config", (req, res) => res.json({ signup: signupOpen() }));
+router.post(
+  "/users/new",
+  signupLimiter,
+  (req, res, next) => (signupOpen() ? next() : authMiddleware(req, res, () => requireAdmin(req, res, next))),
+  createUser
+);
 router.post("/users/login", loginLimiter, login);
 router.get("/users/me", authMiddleware, getMe);
 router.get("/users/role/:id", authMiddleware, getUserRole); // :id ignoré, rôle de l'utilisateur connecté

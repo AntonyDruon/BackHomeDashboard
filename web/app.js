@@ -260,14 +260,20 @@ const authScreen = (root, mode) => {
     submit
   );
 
+  const switchLine = el("p", { class: "switch" });
+  fetch("/config").then((r) => r.json()).then((c) => {
+    if (isLogin && !c.signup) { setKids(switchLine, "Pas de compte ? Demande à l'administrateur de la maison."); return; }
+    if (!isLogin && !c.signup) { location.hash = "#/connexion"; return; }
+    setKids(switchLine,
+      isLogin ? "Pas encore de compte ? " : "Déjà un compte ? ",
+      el("a", { href: isLogin ? "#/inscription" : "#/connexion" }, isLogin ? "Créer un compte" : "Se connecter"));
+  }).catch(() => {});
   root.append(el("section", { class: "auth" },
     el("img", { class: "brand-mark", src: "/icons/icon-192.png", alt: "" }),
     el("p", { class: "brand" }, "HomeDashboard"),
     el("p", { class: "hint" }, isLogin ? "Bus, tâches, notes et lumières de la maison." : "Crée ton compte pour la maison."),
     form,
-    el("p", { class: "switch" },
-      isLogin ? "Pas encore de compte ? " : "Déjà un compte ? ",
-      el("a", { href: isLogin ? "#/inscription" : "#/connexion" }, isLogin ? "Créer un compte" : "Se connecter"))
+    switchLine
   ));
 };
 route(/^#\/connexion$/, null, (root) => authScreen(root, "login"), { public: true });
@@ -788,7 +794,22 @@ route(/^#\/admin$/, "#/", async (root) => {
     return;
   }
   const list = el("div", {}, loading());
-  root.append(list);
+  const addBtn = el("button", { class: "btn primary", onclick: () => openSheet((close) => {
+    const form = el("form", { onsubmit: async (e) => {
+      e.preventDefault();
+      const f = Object.fromEntries(new FormData(form));
+      try { await api("/users/new", { method: "POST", body: f }); close(); toast("Compte créé"); reload(); }
+      catch (ex) { toast(ex.message, true); }
+    } },
+      el("h2", {}, "Nouveau compte"),
+      el("label", { class: "field" }, el("span", {}, "Prénom ou pseudo"), el("input", { class: "input", name: "username", required: true, maxlength: 60 })),
+      el("label", { class: "field" }, el("span", {}, "Email"), el("input", { class: "input", name: "email", type: "email", required: true })),
+      el("label", { class: "field" }, el("span", {}, "Mot de passe provisoire"), el("input", { class: "input", name: "password", type: "password", required: true, minlength: 8, autocomplete: "new-password" })),
+      el("p", { class: "hint" }, "8 caractères minimum. Transmets-le à la personne de vive voix."),
+      el("div", { class: "actions" }, el("button", { class: "btn", type: "button", onclick: close }, "Annuler"), el("button", { class: "btn primary", type: "submit" }, "Créer le compte")));
+    return form;
+  }) }, icon("plus"), "Ajouter un compte");
+  root.append(el("div", { style: { marginBottom: "12px" } }, addBtn), list);
   const reload = async () => {
     const users = await api("/users");
     setKids(list, el("ul", { class: "list panel" }, users.map((u) =>
