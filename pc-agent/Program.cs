@@ -43,7 +43,7 @@ var state = new AgentState();
 try { state = JsonSerializer.Deserialize<AgentState>(File.ReadAllText(statePath)) ?? new AgentState(); } catch { }
 void SaveState() { try { File.WriteAllText(statePath, JsonSerializer.Serialize(state, jsonOpts)); } catch { } }
 
-Log.Info($"Démarrage agent v1.1.0, port {port}");
+Log.Info($"Démarrage agent v1.2.0, port {port}");
 
 var sensors = new Sensors
 {
@@ -113,7 +113,7 @@ app.Use(async (ctx, next) =>
 app.MapGet("/health", () => Results.Json(new
 {
     ok = true,
-    version = "1.1.0",
+    version = "1.2.0",
     host = Environment.MachineName,
     sensors = sensors.Ready,
     corsair = corsair.StateText,
@@ -184,6 +184,24 @@ app.MapPost("/fans", async (HttpRequest req) =>
     return Results.Json(new { ok = true, profile });
 });
 
+// Mise hors tension à distance : veille prolongée (le PC se rallume ensuite par Wake-on-LAN)
+// { "action": "hibernate" | "sleep" }
+app.MapPost("/power", async (HttpRequest req) =>
+{
+    var body = await JsonNode.ParseAsync(req.Body) as JsonObject;
+    var action = (string?)body?["action"];
+    if (action is not ("hibernate" or "sleep"))
+        return Results.Json(new { message = "action attendue : hibernate ou sleep" }, statusCode: 400);
+    Log.Info($"Demande de mise hors tension : {action}");
+    _ = Task.Run(async () =>
+    {
+        await Task.Delay(1500); // laisse partir la réponse HTTP
+        if (!Power.SetSuspendState(action == "hibernate", false, false))
+            Log.Error($"SetSuspendState a échoué ({System.Runtime.InteropServices.Marshal.GetLastWin32Error()})");
+    });
+    return Results.Json(new { ok = true, action });
+});
+
 void Shutdown()
 {
     Log.Info("Arrêt de l'agent");
@@ -204,4 +222,10 @@ public sealed class AgentState
     public string Color { get; set; } = "#ffffff";
     public int Brightness { get; set; } = 100;
     public string FanProfile { get; set; } = "auto";
+}
+
+static class Power
+{
+    [System.Runtime.InteropServices.DllImport("powrprof.dll", SetLastError = true)]
+    public static extern bool SetSuspendState(bool hibernate, bool forceCritical, bool disableWakeEvent);
 }

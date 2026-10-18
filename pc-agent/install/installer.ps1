@@ -3,6 +3,7 @@
 # - installe le pilote PawnIO (lecture des capteurs de la carte mère) s'il manque
 # - pare-feu : port 8790 ouvert UNIQUEMENT au serveur 192.168.1.24
 # - laisse Armoury Crate gérer les ventilateurs (AsusFanControlService actif)
+# - active la veille prolongée et l'ajoute au menu Marche/Arrêt
 # - tâche planifiée : démarre l'agent à ta connexion, avec les droits administrateur
 $ErrorActionPreference = 'Stop'
 $src = $PSScriptRoot
@@ -50,6 +51,25 @@ if ($svc) {
   if ($svc.Status -ne 'Running') { Start-Service AsusFanControlService -ErrorAction SilentlyContinue }
   Write-Host "AsusFanControlService actif"
 } else { Write-Host "Service absent, rien à faire" }
+
+Step "Veille prolongée (extinction compatible avec l'allumage à distance)"
+powercfg /hibernate on
+powercfg /h /type full
+# « Veille prolongée » dans le menu Démarrer > Marche/Arrêt
+$k = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\FlyoutMenuSettings'
+New-Item -Path $k -Force | Out-Null
+Set-ItemProperty -Path $k -Name ShowHibernateOption -Value 1 -Type DWord
+Write-Host "Veille prolongée activée et ajoutée au menu Marche/Arrêt"
+# « Arrêter » masqué du menu Démarrer (Redémarrer et Mettre en veille restent)
+$k2 = 'HKLM:\SOFTWARE\Microsoft\PolicyManager\default\Start\HideShutDown'
+New-Item -Path $k2 -Force | Out-Null
+Set-ItemProperty -Path $k2 -Name value -Value 1 -Type DWord
+Write-Host "« Arrêter » remplacé par « Veille prolongée » dans le menu"
+# Bouton marche du boîtier : veille prolongée (secteur et batterie)
+powercfg /setacvalueindex SCHEME_CURRENT SUB_BUTTONS PBUTTONACTION 2
+powercfg /setdcvalueindex SCHEME_CURRENT SUB_BUTTONS PBUTTONACTION 2
+powercfg /setactive SCHEME_CURRENT
+Write-Host "Bouton marche du PC : veille prolongée"
 
 Step "Démarrage automatique à ta connexion"
 $user = "$env:USERDOMAIN\$env:USERNAME"

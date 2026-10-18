@@ -994,16 +994,17 @@ route(/^#\/pc$/, "#/pc", async (root) => {
     return;
   }
   const statusLine = el("p", { class: "pc-state" }, "Connexion au PC…");
+  const powerRow = el("div", { class: "power-row" });
   const gauges = el("div", { class: "gauges" });
   const details = el("div");
   const chartSlot = el("section", { class: "panel" }, loading());
   const fansSlot = el("div");
   const lightSlot = el("div");
-  root.append(statusLine, gauges, details,
+  root.append(statusLine, gauges, details, powerRow,
     el("h2", {}, "Températures sur 24 h"), chartSlot,
     fansSlot, lightSlot);
 
-  let fanInfo = null, lighting = null, online = false, wakeAt = 0;
+  let fanInfo = null, lighting = null, online = false, wakeAt = 0, shutAt = 0;
 
   const drawStatus = (s) => {
     online = s.online;
@@ -1023,12 +1024,20 @@ route(/^#\/pc$/, "#/pc", async (root) => {
           catch (ex) { toast(ex.message, true); e.currentTarget.disabled = false; }
         },
       }, icon("power"), waking ? "Démarrage demandé" : "Allumer le PC") : null);
-      setKids(details); setKids(fansSlot); setKids(lightSlot);
+      setKids(details); setKids(fansSlot); setKids(lightSlot); setKids(powerRow);
       return;
     }
     wakeAt = 0;
+    shutAt = 0;
     const st = s.status;
     setKids(statusLine, el("span", { class: "dot-on" }), `${st.host} · allumé depuis ${Math.floor(st.uptimeSeconds / 3600)} h ${pad(Math.floor(st.uptimeSeconds % 3600 / 60))}`);
+    setKids(powerRow, el("button", {
+      class: "btn ghost", onclick: async () => {
+        if (!(await confirmSheet("Éteindre le PC ? Il passe en veille prolongée : ta session est conservée et tu pourras le rallumer depuis l'app.", "Éteindre"))) return;
+        try { await api("/pc/power", { method: "POST", body: { action: "hibernate" } }); shutAt = Date.now(); toast("Extinction en cours"); }
+        catch (e) { toast(e.message, true); }
+      },
+    }, icon("power"), "Éteindre le PC"));
     setKids(gauges,
       gauge("Processeur", st.cpu?.temp, `${fmt(st.cpu?.load, " %")} · ${fmt(st.cpu?.power, " W")}`),
       st.gpu ? gauge("Carte graphique", st.gpu.temp, `${fmt(st.gpu.load, " %")} · ${fmt(st.gpu.power, " W")}`) : null);

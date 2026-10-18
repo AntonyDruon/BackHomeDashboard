@@ -172,3 +172,14 @@ export const wakePc = async (req, res) => {
 };
 
 export const pcWakeConfigured = () => PC_MAC.length === 12;
+
+// Extinction à distance (veille prolongée : rallumable par Wake-on-LAN)
+export const setPcPower = async (req, res) => {
+  const { action } = req.body || {};
+  if (!["hibernate", "sleep"].includes(action)) return res.status(400).json({ message: "Action invalide" });
+  try {
+    await agent("/power", { method: "POST", body: { action } });
+    console.log(`PC : extinction demandée (${action})`);
+    res.json({ message: action === "hibernate" ? "Extinction en cours" : "Mise en veille en cours" });
+  } catch (e) { fail(res, e); }
+};

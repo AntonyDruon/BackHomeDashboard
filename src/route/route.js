@@ -61,6 +61,7 @@ import {
   getPcFans,
   setPcFans,
   wakePc,
+  setPcPower,
 } from "../controller/pcController.js";
 
 const router = express.Router();
@@ -124,6 +125,7 @@ router.post("/pc/lighting", authMiddleware, requireAdmin, setPcLighting);
 router.get("/pc/fans", authMiddleware, requireAdmin, getPcFans);
 router.post("/pc/fans", authMiddleware, requireAdmin, setPcFans);
 router.post("/pc/wake", authMiddleware, requireAdmin, pairLimiter, wakePc);
+router.post("/pc/power", authMiddleware, requireAdmin, pairLimiter, setPcPower);
 
 // --- Pièces ---
 router.get("/rooms", authMiddleware, getAllRooms);
