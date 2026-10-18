@@ -13,6 +13,8 @@ public sealed class Sensors : IDisposable
     private string _profile = "auto";
     private readonly Dictionary<string, float> _lastDuty = new();
     public bool Ready { get; private set; }
+    public bool ControlEnabled { get; set; }                      // config.json : fanControl
+    public Dictionary<string, string> Labels { get; set; } = new(); // config.json : fanLabels
 
     // Courbes : (température CPU °C, % ventilateur). Interpolation linéaire.
     public static readonly Dictionary<string, (string Label, (float T, float P)[] Curve)> Profiles = new()
@@ -52,7 +54,7 @@ public sealed class Sensors : IDisposable
         {
             Log.Error("Ouverture LibreHardwareMonitor impossible", ex);
         }
-        _profile = Profiles.ContainsKey(initialProfile) ? initialProfile : "auto";
+        _profile = ControlEnabled && Profiles.ContainsKey(initialProfile) ? initialProfile : "auto";
     }
 
     public string Profile { get { lock (_gate) return _profile; } }
@@ -62,6 +64,7 @@ public sealed class Sensors : IDisposable
         lock (_gate)
         {
             if (profile != "auto" && !Profiles.ContainsKey(profile)) throw new ArgumentException("Profil inconnu");
+            if (profile != "auto" && !ControlEnabled) throw new InvalidOperationException("Pilotage des ventilateurs désactivé");
             _profile = profile;
             if (profile == "auto") RestoreDefaultFans();
         }
@@ -146,7 +149,7 @@ public sealed class Sensors : IDisposable
         var gpuHw = _computer.Hardware.FirstOrDefault(IsGpu);
 
         var coreClocks = all.Where(x => cpu(x.Hw) && x.S.SensorType == SensorType.Clock &&
-                                        x.S.Name.StartsWith("Core #") && x.S.Value.HasValue)
+                                        (x.S.Name.StartsWith("Core #") || x.S.Name.StartsWith("CPU Core #")) && x.S.Value.HasValue)
                             .Select(x => x.S.Value!.Value).ToList();
 
         var memUsed = Find(all, mem, SensorType.Data, "Memory Used");
@@ -169,10 +172,10 @@ public sealed class Sensors : IDisposable
             return new
             {
                 id = $"mb-{x.S.Index}",
-                name = x.S.Name,
+                name = Labels.TryGetValue(x.S.Name, out var label) ? label : x.S.Name,
                 rpm = Round(x.S.Value, 0),
                 percent = Round(ctrl?.Value, 0),
-                controllable = ctrl?.Control != null && x.S.Value is > 0 && !IsPump(x.S.Name),
+                controllable = ControlEnabled && ctrl?.Control != null && x.S.Value is > 0 && !IsPump(x.S.Name),
             };
         }).Where(f => f.rpm is > 0).ToList();
 
@@ -223,6 +226,7 @@ public sealed class Sensors : IDisposable
             board = new { temps = boardTemps, fans },
             coolers,
             fanProfile = _profile,
+            fanControl = ControlEnabled,
         };
     }
 
@@ -246,7 +250,7 @@ public sealed class Sensors : IDisposable
 
     private void ApplyFanCurve(List<(IHardware Hw, ISensor S)> all)
     {
-        if (_profile == "auto") return;
+        if (_profile == "auto" || !ControlEnabled) return;
         var temp = CpuTemp(all);
         var controls = all.Where(x => x.Hw.HardwareType == HardwareType.SuperIO && x.S.SensorType == SensorType.Control && x.S.Control != null).ToList();
         if (temp == null)

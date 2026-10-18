@@ -2,7 +2,7 @@
 # - copie l'agent dans C:\Program Files\HomeDashboardAgent
 # - installe le pilote PawnIO (lecture des capteurs de la carte mère) s'il manque
 # - pare-feu : port 8790 ouvert UNIQUEMENT au serveur 192.168.1.24
-# - coupe le contrôle des ventilateurs d'Armoury Crate (AsusFanControlService)
+# - laisse Armoury Crate gérer les ventilateurs (AsusFanControlService actif)
 # - tâche planifiée : démarre l'agent à ta connexion, avec les droits administrateur
 $ErrorActionPreference = 'Stop'
 $src = $PSScriptRoot
@@ -42,12 +42,13 @@ New-NetFirewallRule -DisplayName 'HomeDashboard Agent - serveur uniquement' -Dir
   -Program (Join-Path $dst 'HomeDashboardAgent.exe') | Out-Null
 Write-Host "OK"
 
-Step "Armoury Crate : contrôle des ventilateurs coupé (les LED restent gérées)"
+Step "Armoury Crate : contrôle des ventilateurs conservé"
+# L'app ne pilote pas les ventilateurs de cette carte mère : on laisse (ou remet) Armoury Crate s'en charger
 $svc = Get-Service AsusFanControlService -ErrorAction SilentlyContinue
 if ($svc) {
-  if ($svc.Status -eq 'Running') { Stop-Service AsusFanControlService -Force }
-  Set-Service AsusFanControlService -StartupType Disabled
-  Write-Host "AsusFanControlService arrêté et désactivé"
+  Set-Service AsusFanControlService -StartupType Automatic
+  if ($svc.Status -ne 'Running') { Start-Service AsusFanControlService -ErrorAction SilentlyContinue }
+  Write-Host "AsusFanControlService actif"
 } else { Write-Host "Service absent, rien à faire" }
 
 Step "Démarrage automatique à ta connexion"

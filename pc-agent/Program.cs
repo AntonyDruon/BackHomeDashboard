@@ -23,6 +23,15 @@ if (string.IsNullOrWhiteSpace((string?)config["token"]))
     config["token"] = Convert.ToHexString(RandomNumberGenerator.GetBytes(32)).ToLowerInvariant();
 config["port"] ??= 8790;
 config["allowedIps"] ??= new JsonArray("192.168.1.24", "127.0.0.1", "::1");
+// Pilotage des ventilateurs carte mère : désactivé par défaut (peu fiable sur ASUS PRIME Z590-A)
+config["fanControl"] ??= false;
+config["fanLabels"] ??= new JsonObject
+{
+    ["Fan #3"] = "Ventilateur LL (prise 3)",
+    ["Fan #4"] = "Ventilateur LL (prise 4)",
+    ["Fan #6"] = "Ventilateur LL (prise 6)",
+    ["Fan #7"] = "Pompe AIO (capteur)",
+};
 File.WriteAllText(configPath, config.ToJsonString(jsonOpts));
 
 var token = (string)config["token"]!;
@@ -34,9 +43,13 @@ var state = new AgentState();
 try { state = JsonSerializer.Deserialize<AgentState>(File.ReadAllText(statePath)) ?? new AgentState(); } catch { }
 void SaveState() { try { File.WriteAllText(statePath, JsonSerializer.Serialize(state, jsonOpts)); } catch { } }
 
-Log.Info($"Démarrage agent v1.0.0, port {port}");
+Log.Info($"Démarrage agent v1.1.0, port {port}");
 
-var sensors = new Sensors();
+var sensors = new Sensors
+{
+    ControlEnabled = (bool)config["fanControl"]!,
+    Labels = config["fanLabels"]!.AsObject().ToDictionary(kv => kv.Key, kv => (string)kv.Value!),
+};
 var corsair = new Corsair();
 var aura = new Aura();
 
@@ -100,7 +113,7 @@ app.Use(async (ctx, next) =>
 app.MapGet("/health", () => Results.Json(new
 {
     ok = true,
-    version = "1.0.0",
+    version = "1.1.0",
     host = Environment.MachineName,
     sensors = sensors.Ready,
     corsair = corsair.StateText,
@@ -143,7 +156,9 @@ app.MapPost("/lighting", async (HttpRequest req) =>
         var errors = new List<string>();
         var (r, g, b) = ParseColor(state.Color, state.Brightness);
         try { corsair.SetColor(r, g, b); } catch (Exception ex) { errors.Add($"Corsair : {ex.Message}"); }
-        try { await aura.SetColor(r, g, b); } catch (Exception ex) { errors.Add($"ASUS : {ex.Message}"); }
+        try { await aura.SetColor(r, g, b); }
+        catch (Exception ex) when (ex.Message.Contains("aucune LED")) { /* rien de branché sur la carte mère */ }
+        catch (Exception ex) { errors.Add($"ASUS : {ex.Message}"); }
         return Results.Json(new { ok = errors.Count < 2, mode, errors });
     }
     return Results.Json(new { message = "mode attendu : auto ou color" }, statusCode: 400);
@@ -151,6 +166,7 @@ app.MapPost("/lighting", async (HttpRequest req) =>
 
 app.MapGet("/fans", () => Results.Json(new
 {
+    enabled = sensors.ControlEnabled,
     profile = sensors.Profile,
     profiles = new[] { new { id = "auto", label = "Auto (BIOS)" } }
         .Concat(Sensors.Profiles.Select(p => new { id = p.Key, label = p.Value.Label })),
@@ -161,6 +177,7 @@ app.MapPost("/fans", async (HttpRequest req) =>
     var body = await JsonNode.ParseAsync(req.Body) as JsonObject;
     var profile = (string?)body?["profile"] ?? "";
     try { sensors.SetProfile(profile); }
+    catch (InvalidOperationException ex) { return Results.Json(new { message = ex.Message }, statusCode: 409); }
     catch { return Results.Json(new { message = "Profil inconnu" }, statusCode: 400); }
     state.FanProfile = profile;
     SaveState();

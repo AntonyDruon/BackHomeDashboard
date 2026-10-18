@@ -1025,7 +1025,7 @@ route(/^#\/pc$/, "#/pc", async (root) => {
     const rows = [
       ["Processeur", st.cpu?.name, `${fmt(st.cpu?.clock, " MHz")} · cœur le plus chaud ${fmt(st.cpu?.tempMax, " °C")}`],
       st.gpu && ["Carte graphique", st.gpu.name,
-        `point chaud ${fmt(st.gpu.hotspot, " °C")} · VRAM ${fmt(st.gpu.vramUsedMb / 1024, " Go", 1)} / ${fmt(st.gpu.vramTotalMb / 1024, " Go", 0)} · ventilo ${fmt(st.gpu.fanRpm, " tr/min")}`],
+        `${st.gpu.hotspot != null ? `point chaud ${fmt(st.gpu.hotspot, " °C")} · ` : ""}${st.gpu.memoryTemp != null ? `mémoire ${fmt(st.gpu.memoryTemp, " °C")} · ` : ""}VRAM ${fmt(st.gpu.vramUsedMb / 1024, " Go", 1)} / ${fmt(st.gpu.vramTotalMb / 1024, " Go", 0)} · ventilo ${fmt(st.gpu.fanRpm, " tr/min")}`],
       ["Mémoire", `${fmt(st.memory?.usedGb, " Go", 1)} / ${fmt(st.memory?.totalGb, " Go", 0)}`, `${fmt(st.memory?.load, " %")} utilisée`],
       ...(st.storage || []).map((d) => ["SSD", d.name, `${fmt(d.temp, " °C")} · ${fmt(d.usedPercent, " % plein")}`]),
       ...(st.coolers || []).map((c) => ["Refroidissement", c.name, c.sensors.map((x) => `${x.name} ${x.value}`).join(" · ")]),
@@ -1038,11 +1038,13 @@ route(/^#\/pc$/, "#/pc", async (root) => {
 
   const drawFans = (st) => {
     const fans = st?.board?.fans || [];
+    const canControl = fanInfo ? fanInfo.enabled !== false : st?.fanControl !== false;
     const profile = fanInfo?.profile || st?.fanProfile || "auto";
     const profiles = fanInfo?.profiles || [{ id: "auto", label: "Auto (BIOS)" }, { id: "silencieux", label: "Silencieux" }, { id: "normal", label: "Normal" }, { id: "performance", label: "Performance" }];
     setKids(fansSlot,
       el("h2", {}, "Ventilation"),
       el("section", { class: "panel" },
+        !canControl ? el("p", { class: "hint" }, "Les ventilateurs suivent les courbes du BIOS. Le pilotage depuis l'app est désactivé sur cette carte mère.") :
         el("div", { class: "segmented", role: "group", "aria-label": "Profil des ventilateurs" },
           profiles.map((p) => el("button", {
             type: "button", "aria-pressed": String(p.id === profile), disabled: !online,
@@ -1054,7 +1056,7 @@ route(/^#\/pc$/, "#/pc", async (root) => {
               } catch (e) { toast(e.message, true); }
             },
           }, p.label))),
-        el("p", { class: "hint" }, profile === "auto"
+        !canControl ? null : el("p", { class: "hint" }, profile === "auto"
           ? "La carte mère gère ses ventilateurs selon le BIOS."
           : "Les ventilateurs de la carte mère suivent la température du processeur (jamais sous 35 %, 100 % au-delà de 90 °C)."),
         fans.length

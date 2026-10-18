@@ -1,11 +1,11 @@
 // Service worker : met en cache l'interface pour qu'elle s'ouvre instantanément.
 // Les données (API) ne sont jamais mises en cache : toujours fraîches.
-const VERSION = "hd-v2";
+const VERSION = "hd-v3";
 const SHELL = [
   "/",
   "/index.html",
-  "/style.css?v=2",
-  "/app.js?v=2",
+  "/style.css?v=3",
+  "/app.js?v=3",
   "/manifest.webmanifest",
   "/icons/icon-192.png",
   "/icons/apple-touch-icon.png",

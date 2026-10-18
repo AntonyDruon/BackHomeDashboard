@@ -11,6 +11,7 @@ public sealed class Aura : IDisposable
     private readonly Thread _thread;
     private dynamic? _sdk;
     private bool _controlling;
+    private List<object>? _seen; // appareils vus lors de la dernière prise de contrôle
     public string State { get; private set; } = "non démarré";
     public bool Available => _sdk != null;
 
@@ -70,21 +71,7 @@ public sealed class Aura : IDisposable
     public Task<object> Describe() => Run<object>(() =>
     {
         if (_sdk == null) return new { available = false, state = State, devices = Array.Empty<object>() };
-        try
-        {
-            var list = EnumerateDevices().Select(d => (object)new
-            {
-                name = (string)d.Name,
-                type = (long)(uint)d.Type,
-                lights = (int)d.Lights.Count,
-            }).ToList();
-            return new { available = true, state = State, devices = list };
-        }
-        catch (Exception ex)
-        {
-            Log.Error("Aura : liste", ex);
-            return new { available = true, state = "erreur de lecture", devices = Array.Empty<object>() };
-        }
+        return new { available = true, state = _seen == null ? "prêt" : (_seen.Count == 0 ? "aucune LED ASUS détectée" : "prêt"), devices = (object?)_seen ?? Array.Empty<object>() };
     });
 
     // Couleur unie sur toutes les LED Aura (format COM : 0x00BBGGRR)
@@ -93,12 +80,21 @@ public sealed class Aura : IDisposable
         if (_sdk == null) throw new InvalidOperationException(State);
         if (!_controlling) { _sdk.SwitchMode(); _controlling = true; }
         uint color = (uint)(r | (g << 8) | (b << 16));
+        var seen = new List<object>();
         foreach (var d in EnumerateDevices())
         {
+            seen.Add(new { name = (string)d.Name, lights = (int)d.Lights.Count });
             dynamic lights = d.Lights;
             int n = (int)lights.Count;
             for (int i = 0; i < n; i++) Item(lights, i).Color = color;
             d.Apply();
+        }
+        _seen = seen;
+        if (seen.Count == 0)
+        {
+            _sdk.ReleaseControl(0);
+            _controlling = false;
+            throw new InvalidOperationException("aucune LED ASUS détectée");
         }
         return 0;
     });
