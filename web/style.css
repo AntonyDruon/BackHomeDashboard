@@ -379,7 +379,8 @@ h2:first-child { margin-top: 0; }
 .tile.pc .tile-big.warm { color: var(--amber); text-shadow: 0 0 22px rgba(255, 190, 74, 0.45); }
 .tile.pc .tile-big.hot { color: var(--red); text-shadow: 0 0 22px rgba(255, 90, 120, 0.5); }
 .tile.pc.off .tile-big { color: var(--faint); text-shadow: none; font-size: 22px; }
-.tile .btn { margin-top: 12px; min-height: 40px; font-size: 14px; }
+.tile .btn { margin-top: 12px; min-height: 42px; font-size: 14px; padding: 0 12px; }
+.tile.pc .tile-sub { margin-bottom: 0; }
 .tile-tasks { list-style: none; margin: 10px 0 0; padding: 0; }
 .tile-tasks li { display: flex; align-items: center; gap: 10px; padding: 7px 0; }
 .count { font: 700 13px/1 var(--display); color: var(--ink); background: rgba(56, 227, 255, 0.14); border: 1px solid rgba(56, 227, 255, 0.35); padding: 4px 8px; border-radius: 999px; }

@@ -893,27 +893,40 @@ route(/^#\/$/, "#/", async (root) => {
     } catch (e) { setKids(busTile, tileHead("bus", "Bus 118"), el("div", { class: "tile-sub", style: { marginTop: "auto" } }, e.message)); }
   };
 
+  // Tuile PC : allumer / éteindre en un geste, avec l'état de transition
+  let pcPending = null; // { kind: "wake" | "off", at }
+  const pending = (kind) => pcPending && pcPending.kind === kind && Date.now() - pcPending.at < 3 * 60 * 1000;
+  const powerBtn = (label, kind, onclick) => el("button", {
+    class: `btn ${kind === "wake" ? "primary" : "danger"} block`, disabled: pending(kind), onclick,
+  }, icon("power"), pending(kind) ? (kind === "wake" ? "Démarrage…" : "Extinction…") : label);
+
   const loadPc = async () => {
     if (!pcTile) return;
     try {
       const s = await api("/pc/status");
+      const head = (on) => el("a", { class: "tile-head", href: "#/pc", style: { textDecoration: "none" } },
+        icon("pc"), "PC", el("span", { class: on ? "dot-on" : "dot-off", style: { marginLeft: "auto" } }));
       if (s.online && s.status) {
+        if (pcPending?.kind === "wake") pcPending = null;
         const t = s.status.cpu?.temp;
         pcTile.className = "tile pc rim";
-        setKids(pcTile,
-          el("a", { class: "tile-head", href: "#/pc", style: { textDecoration: "none" } }, icon("pc"), "PC", el("span", { class: "dot-on", style: { marginLeft: "auto" } })),
+        setKids(pcTile, head(true),
           el("div", { class: `tile-big ${tempLevel(t)}` }, t == null ? "–" : Math.round(t), el("small", {}, "°C")),
-          el("div", { class: "tile-sub" }, `processeur · GPU ${fmt(s.status.gpu?.temp, " °C")}`));
+          el("div", { class: "tile-sub" }, `processeur · GPU ${fmt(s.status.gpu?.temp, " °C")}`),
+          powerBtn("Éteindre", "off", async () => {
+            if (!(await confirmSheet("Éteindre le PC ? Ta session est conservée, tu pourras le rallumer d'ici.", "Éteindre"))) return;
+            try { await api("/pc/power", { method: "POST", body: { action: "hibernate" } }); pcPending = { kind: "off", at: Date.now() }; toast("Extinction en cours"); loadPc(); }
+            catch (ex) { toast(ex.message, true); }
+          }));
       } else {
+        if (pcPending?.kind === "off") pcPending = null;
         pcTile.className = "tile pc off rim";
-        setKids(pcTile,
-          el("a", { class: "tile-head", href: "#/pc", style: { textDecoration: "none" } }, icon("pc"), "PC", el("span", { class: "dot-off", style: { marginLeft: "auto" } })),
-          el("div", { class: "tile-big" }, "Éteint"),
-          s.canWake ? el("button", { class: "btn primary", onclick: async (e) => {
-            e.currentTarget.disabled = true;
-            try { await api("/pc/wake", { method: "POST", body: {} }); toast("Allumage demandé, 1 à 2 minutes"); }
-            catch (ex) { toast(ex.message, true); e.currentTarget.disabled = false; }
-          } }, icon("power"), "Allumer") : null);
+        setKids(pcTile, head(false),
+          el("div", { class: "tile-big" }, pending("wake") ? "Démarre" : "Éteint"),
+          s.canWake ? powerBtn("Allumer", "wake", async () => {
+            try { await api("/pc/wake", { method: "POST", body: {} }); pcPending = { kind: "wake", at: Date.now() }; toast("Allumage demandé, 1 à 2 minutes"); loadPc(); }
+            catch (ex) { toast(ex.message, true); }
+          }) : null);
       }
     } catch { setKids(pcTile, tileHead("pc", "PC"), el("div", { class: "tile-sub", style: { marginTop: "auto" } }, "Indisponible")); }
   };
@@ -951,7 +964,7 @@ route(/^#\/$/, "#/", async (root) => {
 
   await Promise.all([loadBus(), loadPc(), loadTasks(), loadLights()]);
   const s1 = every(30000, loadBus);
-  const s2 = every(15000, loadPc);
+  const s2 = every(8000, loadPc);
   return () => { s1(); s2(); };
 });
 
