@@ -260,7 +260,7 @@ const authScreen = (root, mode) => {
     submit
   );
 
-  const switchLine = el("p", { class: "switch" });
+  const switchLine = el("p", { class: "auth-switch" });
   fetch("/config").then((r) => r.json()).then((c) => {
     if (isLogin && !c.signup) { setKids(switchLine, "Pas de compte ? Demande à l'administrateur de la maison."); return; }
     if (!isLogin && !c.signup) { location.hash = "#/connexion"; return; }
@@ -296,7 +296,7 @@ const departureCell = (p) => {
 };
 
 const busBoard = (stop, { onFav } = {}) =>
-  el("article", { class: "board" },
+  el("article", { class: "board rim" },
     el("div", { class: "board-stop" },
       el("h3", {}, stop.name),
       onFav
@@ -849,45 +849,84 @@ const greeting = () => {
   return h < 5 ? "Bonne nuit" : h < 18 ? "Bonjour" : "Bonsoir";
 };
 
+const DAYS_LONG = ["dimanche", "lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi"];
+const todayLabel = () => { const d = new Date(); return `${DAYS_LONG[d.getDay()]} ${d.getDate()} ${MONTHS[d.getMonth()]}`; };
+
 route(/^#\/$/, "#/", async (root) => {
-  const busSlot = el("div", {}, loading());
-  const tasksSlot = el("div");
-  const lightsSlot = el("div");
+  const isAdmin = me?.role === "admin";
+  const busTile = el("a", { class: "tile bus rim", href: "#/bus" }, el("div", { class: "tile-head" }, icon("bus"), "Bus 118"), loading());
+  const pcTile = isAdmin ? el("div", { class: "tile pc rim" }, el("div", { class: "tile-head" }, icon("pc"), "PC"), loading()) : null;
+  const notesTile = isAdmin ? null : el("a", { class: "tile", href: "#/notes" }, el("div", { class: "tile-head" }, icon("note"), "Notes"), el("p", { class: "tile-sub" }, "Tes listes et pense-bêtes"));
+  const tasksTile = el("section", { class: "tile wide" }, el("div", { class: "tile-head" }, icon("tasks"), "Aujourd'hui"));
+  const lightsTile = el("section", { class: "tile wide" }, el("div", { class: "tile-head" }, icon("bulb"), "Lumières"));
 
   root.append(
-    el("header", { class: "screen-head" },
-      el("p", { class: "greet", style: { flex: 1, margin: 0 } }, `${greeting()}${me?.username ? `, ${me.username}` : ""}`),
+    el("header", { class: "hero" },
+      el("div", { class: "hero-text" },
+        el("p", { class: "hero-date" }, todayLabel()),
+        el("h1", { class: "greet" }, `${greeting()}${me?.username ? `, ${me.username}` : ""}`)),
       el("button", { class: "icon-btn", "aria-label": "Se déconnecter", onclick: () => logout() }, icon("logout"))),
-    el("div", { class: "section-link" }, el("h2", {}, "Prochain 118"), el("a", { href: "#/bus" }, "Tous les arrêts")),
-    busSlot,
-    tasksSlot,
-    lightsSlot,
-    el("h2", {}, "Aussi"),
+    el("div", { class: "bento" }, busTile, pcTile || notesTile, tasksTile, lightsTile),
+    el("h2", {}, "Raccourcis"),
     el("nav", { class: "nav-links" },
       el("a", { href: "#/calendrier" }, icon("calendar"), "Calendrier"),
+      el("a", { href: "#/notes" }, icon("note"), "Notes"),
       el("a", { href: "#/pieces" }, icon("room"), "Pièces"),
-      me?.role === "admin" ? el("a", { href: "#/pc" }, icon("pc"), "PC") : null,
-      me?.role === "admin" ? el("a", { href: "#/admin" }, icon("admin"), "Utilisateurs") : null)
+      isAdmin ? el("a", { href: "#/admin" }, icon("admin"), "Utilisateurs") : null)
   );
 
+  const tileHead = (ic, label, more) => el("div", { class: "tile-head" }, icon(ic), label, more || null);
+
+  // Prochain 118 à l'arrêt favori : le départ le plus proche, tous sens confondus
   const loadBus = async () => {
     try {
       const data = await api("/transport/118");
-      const stop = data.stops.find((s) => s.id === favStop()) || data.stops[0];
-      setKids(busSlot, busBoard(stop));
-    } catch (e) { setKids(busSlot, el("div", { class: "error-box" }, e.message)); }
+      const stop = data.stops.find((x) => x.id === favStop()) || data.stops[0];
+      const next = stop.directions
+        .flatMap((d) => d.departures.filter((p) => p.status !== "cancelled").map((p) => ({ ...p, dest: d.destination })))
+        .sort((x, y) => Date.parse(x.time) - Date.parse(y.time))[0];
+      setKids(busTile, tileHead("bus", stop.name),
+        next
+          ? [el("div", { class: "tile-big" }, next.atStop || next.minutes <= 1 ? "proche" : [String(next.minutes), el("small", {}, "min")]),
+             el("div", { class: "tile-sub" }, `vers ${next.dest.replace("Gare de ", "")} · ${hhmm(next.time)}`)]
+          : el("div", { class: "tile-sub", style: { marginTop: "auto" } }, stop.error || "Aucun passage annoncé"));
+    } catch (e) { setKids(busTile, tileHead("bus", "Bus 118"), el("div", { class: "tile-sub", style: { marginTop: "auto" } }, e.message)); }
+  };
+
+  const loadPc = async () => {
+    if (!pcTile) return;
+    try {
+      const s = await api("/pc/status");
+      if (s.online && s.status) {
+        const t = s.status.cpu?.temp;
+        pcTile.className = "tile pc rim";
+        setKids(pcTile,
+          el("a", { class: "tile-head", href: "#/pc", style: { textDecoration: "none" } }, icon("pc"), "PC", el("span", { class: "dot-on", style: { marginLeft: "auto" } })),
+          el("div", { class: `tile-big ${tempLevel(t)}` }, t == null ? "–" : Math.round(t), el("small", {}, "°C")),
+          el("div", { class: "tile-sub" }, `processeur · GPU ${fmt(s.status.gpu?.temp, " °C")}`));
+      } else {
+        pcTile.className = "tile pc off rim";
+        setKids(pcTile,
+          el("a", { class: "tile-head", href: "#/pc", style: { textDecoration: "none" } }, icon("pc"), "PC", el("span", { class: "dot-off", style: { marginLeft: "auto" } })),
+          el("div", { class: "tile-big" }, "Éteint"),
+          s.canWake ? el("button", { class: "btn primary", onclick: async (e) => {
+            e.currentTarget.disabled = true;
+            try { await api("/pc/wake", { method: "POST", body: {} }); toast("Allumage demandé, 1 à 2 minutes"); }
+            catch (ex) { toast(ex.message, true); e.currentTarget.disabled = false; }
+          } }, icon("power"), "Allumer") : null);
+      }
+    } catch { setKids(pcTile, tileHead("pc", "PC"), el("div", { class: "tile-sub", style: { marginTop: "auto" } }, "Indisponible")); }
   };
 
   const loadTasks = async () => {
     try {
       const g = groupTodos(await api("/todos"));
       const list = [...g.late, ...g.today];
-      setKids(tasksSlot, 
-        el("div", { class: "section-link" }, el("h2", {}, "Aujourd'hui"), el("a", { href: "#/taches" }, "Toutes les tâches")),
+      setKids(tasksTile,
+        tileHead("tasks", "Aujourd'hui", el("a", { class: "more", href: "#/taches" }, list.length ? el("span", { class: "count" }, String(list.length)) : "Tout voir")),
         list.length
-          ? el("ul", { class: "list panel" }, list.slice(0, 6).map((t) => todoItem(t, loadTasks)))
-          : el("p", { class: "empty" }, g.soon.length ? `Rien pour aujourd'hui. Prochaine tâche : ${prettyDay(g.soon[0].date).toLowerCase()}.` : "Rien de prévu aujourd'hui.")
-      );
+          ? el("ul", { class: "list" }, list.slice(0, 5).map((t) => todoItem(t, loadTasks)))
+          : el("p", { class: "empty" }, g.soon.length ? `Rien pour aujourd'hui. Prochaine tâche ${prettyDay(g.soon[0].date).toLowerCase()}.` : "Rien de prévu. Profite."));
     } catch {}
   };
 
@@ -895,33 +934,25 @@ route(/^#\/$/, "#/", async (root) => {
     try {
       const s = await api("/lights/status");
       const chips = [];
-      if (s.hue.paired && s.hue.reachable) {
-        for (const l of s.hue.lights) {
-          chips.push(el("button", { class: "chip", "aria-pressed": String(l.on), disabled: !l.reachable, onclick: async (e) => {
-            const b = e.currentTarget; const next = b.getAttribute("aria-pressed") !== "true";
-            b.setAttribute("aria-pressed", String(next));
-            try { await api(`/lights/hue/${l.id}`, { method: "PUT", body: { on: next } }); }
-            catch (ex) { b.setAttribute("aria-pressed", String(!next)); toast(ex.message, true); }
-          } }, el("span", { class: "dot" }), l.name));
-        }
-      }
-      if (s.nanoleaf.paired && s.nanoleaf.reachable) {
-        chips.push(el("button", { class: "chip", "aria-pressed": String(s.nanoleaf.on), onclick: async (e) => {
-          const b = e.currentTarget; const next = b.getAttribute("aria-pressed") !== "true";
-          b.setAttribute("aria-pressed", String(next));
-          try { await api("/lights/nanoleaf", { method: "PUT", body: { on: next } }); }
-          catch (ex) { b.setAttribute("aria-pressed", String(!next)); toast(ex.message, true); }
-        } }, el("span", { class: "dot" }), s.nanoleaf.name));
-      }
-      setKids(lightsSlot, 
-        el("div", { class: "section-link" }, el("h2", {}, "Lumières"), el("a", { href: "#/lumieres" }, chips.length ? "Réglages" : "Configurer")),
-        chips.length ? el("div", { class: "quick-lights" }, chips) : el("p", { class: "empty" }, "Aucune lampe appairée pour l'instant.")
-      );
+      const chip = (name, on, send, disabled) => el("button", { class: "chip", "aria-pressed": String(on), disabled, onclick: async (e) => {
+        const b = e.currentTarget; const next = b.getAttribute("aria-pressed") !== "true";
+        b.setAttribute("aria-pressed", String(next));
+        try { await send(next); } catch (ex) { b.setAttribute("aria-pressed", String(!next)); toast(ex.message, true); }
+      } }, el("span", { class: "dot" }), name);
+      if (s.hue.paired && s.hue.reachable) for (const l of s.hue.lights)
+        chips.push(chip(l.name, l.on, (on) => api(`/lights/hue/${l.id}`, { method: "PUT", body: { on } }), !l.reachable));
+      if (s.nanoleaf.paired && s.nanoleaf.reachable)
+        chips.push(chip(s.nanoleaf.name, s.nanoleaf.on, (on) => api("/lights/nanoleaf", { method: "PUT", body: { on } })));
+      setKids(lightsTile,
+        tileHead("bulb", "Lumières", el("a", { class: "more", href: "#/lumieres" }, chips.length ? "Réglages" : "Configurer")),
+        chips.length ? el("div", { class: "quick-lights" }, chips) : el("p", { class: "empty" }, "Aucune lampe appairée pour l'instant."));
     } catch {}
   };
 
-  await Promise.all([loadBus(), loadTasks(), loadLights()]);
-  return every(30000, loadBus);
+  await Promise.all([loadBus(), loadPc(), loadTasks(), loadLights()]);
+  const s1 = every(30000, loadBus);
+  const s2 = every(15000, loadPc);
+  return () => { s1(); s2(); };
 });
 
 /* ================= PC (agent Windows) ================= */
@@ -953,7 +984,7 @@ const gauge = (label, temp, sub) => {
     return `M${x0.toFixed(1)} ${y0.toFixed(1)} A${R} ${R} 0 ${a1 - a0 > Math.PI ? 1 : 0} 1 ${x1.toFixed(1)} ${y1.toFixed(1)}`;
   };
   const ratio = temp == null ? 0 : Math.max(0, Math.min(1, (temp - 20) / 80));
-  return el("figure", { class: `gauge ${tempLevel(temp)}` },
+  return el("figure", { class: `gauge rim ${tempLevel(temp)}` },
     svg("svg", { viewBox: "0 0 128 104", "aria-hidden": "true" },
       svg("path", { d: arc(START, END), class: "g-track" }),
       ratio > 0.005 ? svg("path", { d: arc(START, START + (END - START) * ratio), class: "g-fill" }) : null),
